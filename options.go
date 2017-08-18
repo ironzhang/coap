@@ -101,3 +101,17 @@ func (options *Options) Write(w io.Writer) error {
 	}
 	return nil
 }
+
+func (options *Options) SetStrings(id OptionID, ss []string) {
+	options.Del(id)
+	for _, s := range ss {
+		options.Add(id, s)
+	}
+}
+
+func (options *Options) SetPath(path string) {
+	if len(path) > 0 && path[0] == '/' {
+		path = path[1:]
+	}
+	options.SetStrings(URIPath, strings.Split(path, "/"))
+}
