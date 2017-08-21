@@ -2,14 +2,18 @@ package coap
 
 import (
 	"errors"
-	"io"
 	"net"
+	"sync"
 )
 
 type Client struct {
+	Handler Handler
+
+	mu    sync.RWMutex
+	conns map[string]*clientConn
 }
 
-func (c *Client) SendRequest(req *Request, cb func(*Client, *Response)) error {
+func (c *Client) SendRequest(req *Request) error {
 	if req.URL == nil {
 		return errors.New("coap: nil Request.URL")
 	}
@@ -21,65 +25,60 @@ func (c *Client) SendRequest(req *Request, cb func(*Client, *Response)) error {
 	if err != nil {
 		return err
 	}
+	conn, err := c.addConn(addr)
+	if err != nil {
+		return err
+	}
+
+	conn.sess.requestc <- req
+	return req.wait()
+}
+
+func (c *Client) addConn(addr *net.UDPAddr) (*clientConn, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conns == nil {
+		c.conns = make(map[string]*clientConn)
+	}
+	conn, ok := c.conns[addr.String()]
+	if !ok {
+		conn = &clientConn{}
+		if err := conn.init(addr, c.Handler); err != nil {
+			return nil, err
+		}
+		c.conns[addr.String()] = conn
+	}
+	return conn, nil
+}
+
+type clientConn struct {
+	conn *net.UDPConn
+	addr *net.UDPAddr
+	sess session
+}
+
+func (c *clientConn) init(addr *net.UDPAddr, h Handler) error {
 	conn, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
 
-	req.Options.SetPath(req.URL.Path)
-	reqMsg := message{
-		Type:      NON,
-		Code:      req.Method,
-		MessageID: 1,   // 生成MessageID
-		Token:     nil, // 生成token
-		Options:   req.Options,
-		Payload:   req.Payload,
-	}
-	if req.Confirmable {
-		reqMsg.Type = CON
-	}
-
-	if err = c.writeMessage(conn, reqMsg); err != nil {
-		return err
-	}
-
-	if req.Confirmable {
-		resMsg, err := c.readMessage(conn)
-		if err != nil {
-			return err
-		}
-		if cb != nil {
-			resp := &Response{
-				Ack:     resMsg.Type == ACK,
-				Status:  resMsg.Code,
-				Options: resMsg.Options,
-				Token:   resMsg.Token,
-				Payload: resMsg.Payload,
-			}
-			cb(c, resp)
-		}
-	}
-
+	c.conn = conn
+	c.addr = addr
+	c.sess.init(conn, h)
+	go c.reading()
 	return nil
 }
 
-func (c *Client) writeMessage(w io.Writer, m message) error {
-	data, err := m.Marshal()
-	if err != nil {
-		return err
-	}
-	if _, err = w.Write(data); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *Client) readMessage(r io.Reader) (message, error) {
+func (c *clientConn) reading() {
 	buf := make([]byte, 1500)
-	n, err := r.Read(buf)
-	if err != nil {
-		return message{}, err
+	for {
+		n, err := c.conn.Read(buf)
+		if err != nil {
+			continue
+		}
+		data := make([]byte, n)
+		copy(data, buf)
+		c.sess.recvc <- data
 	}
-	return parseMessage(buf[:n])
 }

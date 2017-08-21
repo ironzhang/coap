@@ -271,7 +271,7 @@ type message struct {
 	Type      Type
 	Code      Code
 	MessageID uint16
-	Token     []byte
+	Token     string
 	Options   []Option
 	Payload   []byte
 }
@@ -280,6 +280,10 @@ type fixHeader struct {
 	Flags     uint8
 	Code      uint8
 	MessageID uint16
+}
+
+func (m *message) String() string {
+	return fmt.Sprintf("Type: %s, Code: %s, MessageID: %d, Token: %s", m.Type.String(), m.Code.String(), m.MessageID, m.Token)
 }
 
 func (m *message) Marshal() ([]byte, error) {
@@ -297,7 +301,7 @@ func (m *message) Marshal() ([]byte, error) {
 	}
 
 	// token
-	buf.Write(m.Token)
+	buf.WriteString(m.Token)
 
 	// options
 	sort.Slice(m.Options, func(i, j int) bool {
@@ -352,10 +356,11 @@ func (m *message) Unmarshal(data []byte) (err error) {
 		return errors.New("truncated")
 	}
 	if tokenLen > 0 {
-		m.Token = make([]byte, tokenLen)
-		if _, err = io.ReadFull(buf, m.Token); err != nil {
+		token := make([]byte, tokenLen)
+		if _, err = io.ReadFull(buf, token); err != nil {
 			return err
 		}
+		m.Token = string(token)
 	}
 
 	// options

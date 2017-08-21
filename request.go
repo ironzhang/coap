@@ -7,8 +7,12 @@ type Request struct {
 	Method      Code
 	Options     Options
 	URL         *url.URL
-	Token       []byte
+	Token       string
 	Payload     []byte
+	Callback    func(*Response)
+
+	err   error
+	donec chan struct{}
 }
 
 func NewRequest(confirmable bool, method Code, urlstr string, payload []byte) (*Request, error) {
@@ -16,10 +20,22 @@ func NewRequest(confirmable bool, method Code, urlstr string, payload []byte) (*
 	if err != nil {
 		return nil, err
 	}
-	return &Request{
+	r := &Request{
 		Confirmable: confirmable,
 		Method:      method,
 		URL:         u,
 		Payload:     payload,
-	}, nil
+		donec:       make(chan struct{}),
+	}
+	return r, nil
+}
+
+func (r *Request) done(err error) {
+	r.err = err
+	close(r.donec)
+}
+
+func (r *Request) wait() error {
+	<-r.donec
+	return r.err
 }

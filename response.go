@@ -4,6 +4,6 @@ type Response struct {
 	Ack     bool
 	Status  Code
 	Options Options
-	Token   []byte
+	Token   string
 	Payload []byte
 }
