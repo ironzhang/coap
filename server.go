@@ -45,8 +45,7 @@ func (s *Server) Serve(l net.PacketConn) error {
 		}
 		data := make([]byte, n)
 		copy(data, buf)
-		sess := s.addSession(l, addr)
-		sess.recvc <- data
+		s.addSession(l, addr).Recv(data)
 	}
 	return nil
 }
@@ -61,7 +60,7 @@ func (s *Server) SendRequest(req *Request) error {
 	if !ok {
 		return fmt.Errorf("session(%s) not found", addr)
 	}
-	sess.requestc <- req
+	sess.SendRequest(req)
 	return req.wait()
 }
 

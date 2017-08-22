@@ -29,8 +29,7 @@ func (c *Client) SendRequest(req *Request) error {
 	if err != nil {
 		return err
 	}
-
-	conn.sess.requestc <- req
+	conn.sess.SendRequest(req)
 	return req.wait()
 }
 
@@ -65,7 +64,7 @@ func (c *clientConn) init(addr *net.UDPAddr, h Handler) error {
 
 	c.conn = conn
 	c.addr = addr
-	c.sess.init(conn, h)
+	c.sess.Init(conn, h)
 	go c.reading()
 	return nil
 }
@@ -79,6 +78,6 @@ func (c *clientConn) reading() {
 		}
 		data := make([]byte, n)
 		copy(data, buf)
-		c.sess.recvc <- data
+		c.sess.Recv(data)
 	}
 }

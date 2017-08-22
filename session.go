@@ -47,11 +47,12 @@ type response struct {
 
 func (r *response) Ack(code Code) {
 	r.acked = true
-	r.session.messagec <- message{
+	m := message{
 		Type:      ACK,
 		Code:      code,
 		MessageID: r.messageID,
 	}
+	r.session.SendMessage(m)
 }
 
 func (r *response) SetConfirmable() {
@@ -81,36 +82,47 @@ type session struct {
 	dones     map[uint16]func(error)
 	callbacks map[string]callback
 
-	donec     chan struct{}
-	taskc     chan func()
-	recvc     chan []byte    // 待处理的数据
-	messagec  chan message   // 待发送的消息
-	requestc  chan *Request  // 待发送的请求
-	responsec chan *response // 待发送的响应
+	donec    chan struct{}
+	servingc chan func()
+	runningc chan func()
 }
 
 func newSession(w io.Writer, h Handler) *session {
-	return new(session).init(w, h)
+	return new(session).Init(w, h)
 }
 
-func (s *session) init(w io.Writer, h Handler) *session {
+func (s *session) Init(w io.Writer, h Handler) *session {
 	s.writer = w
 	s.handler = h
 	s.dones = make(map[uint16]func(error))
 	s.callbacks = make(map[string]callback)
 	s.donec = make(chan struct{})
-	s.taskc = make(chan func(), 8)
-	s.recvc = make(chan []byte, 8)
-	s.messagec = make(chan message, 8)
-	s.requestc = make(chan *Request, 8)
-	s.responsec = make(chan *response, 8)
+	s.servingc = make(chan func(), 8)
+	s.runningc = make(chan func(), 8)
 	go s.serving()
 	go s.running()
 	return s
 }
 
-func (s *session) close() {
+func (s *session) Close() error {
 	close(s.donec)
+	return nil
+}
+
+func (s *session) Recv(data []byte) {
+	s.runningc <- func() { s.recv(data) }
+}
+
+func (s *session) SendMessage(m message) {
+	s.runningc <- func() { s.sendMessage(m) }
+}
+
+func (s *session) SendRequest(r *Request) {
+	s.runningc <- func() { s.sendRequest(r) }
+}
+
+func (s *session) SendResponse(r *response) {
+	s.runningc <- func() { s.sendResponse(r) }
 }
 
 func (s *session) done(id uint16, err error) {
@@ -123,9 +135,7 @@ func (s *session) done(id uint16, err error) {
 func (s *session) callback(r *Response) {
 	if cb, ok := s.callbacks[r.Token]; ok {
 		delete(s.callbacks, r.Token)
-		s.taskc <- func() {
-			cb.cb(r)
-		}
+		s.servingc <- func() { cb.cb(r) }
 	}
 }
 
@@ -134,7 +144,7 @@ func (s *session) serving() {
 		select {
 		case <-s.donec:
 			return
-		case f := <-s.taskc:
+		case f := <-s.servingc:
 			f()
 		}
 	}
@@ -145,19 +155,13 @@ func (s *session) running() {
 		select {
 		case <-s.donec:
 			return
-		case data := <-s.recvc:
-			s.handle(data)
-		case msg := <-s.messagec:
-			s.sendMessage(msg)
-		case req := <-s.requestc:
-			s.sendRequest(req)
-		case resp := <-s.responsec:
-			s.sendResponse(resp)
+		case f := <-s.runningc:
+			f()
 		}
 	}
 }
 
-func (s *session) handle(data []byte) {
+func (s *session) recv(data []byte) {
 	var m message
 	if err := m.Unmarshal(data); err != nil {
 		log.Printf("message unmarshal: %v", err)
@@ -228,7 +232,7 @@ func (s *session) handleRequest(m message) {
 		return
 	}
 
-	s.taskc <- func() {
+	s.servingc <- func() {
 		req := &Request{
 			Confirmable: m.Type == CON,
 			Method:      m.Code,
@@ -245,7 +249,7 @@ func (s *session) handleRequest(m message) {
 			code:        Content,
 		}
 		s.handler.ServeCOAP(resp, req)
-		s.responsec <- resp
+		s.SendResponse(resp)
 	}
 }
 
