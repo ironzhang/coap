@@ -92,14 +92,16 @@ type callback struct {
 }
 
 type session struct {
-	writer    io.Writer
-	handler   Handler
-	dones     map[uint16]func(error)
-	callbacks map[string]callback
+	writer  io.Writer
+	handler Handler
 
 	donec    chan struct{}
 	servingc chan func()
 	runningc chan func()
+
+	// 以下字段只能在running协程中访问
+	dones     map[uint16]func(error)
+	callbacks map[string]callback
 }
 
 func newSession(w io.Writer, h Handler) *session {
@@ -109,11 +111,11 @@ func newSession(w io.Writer, h Handler) *session {
 func (s *session) Init(w io.Writer, h Handler) *session {
 	s.writer = w
 	s.handler = h
-	s.dones = make(map[uint16]func(error))
-	s.callbacks = make(map[string]callback)
 	s.donec = make(chan struct{})
 	s.servingc = make(chan func(), 8)
 	s.runningc = make(chan func(), 8)
+	s.dones = make(map[uint16]func(error))
+	s.callbacks = make(map[string]callback)
 	go s.serving()
 	go s.running()
 	return s
@@ -125,41 +127,28 @@ func (s *session) Close() error {
 }
 
 func (s *session) Recv(data []byte) {
-	s.runningc <- func() { s.recv(data) }
+	s.runningc <- func() { s.doRecv(data) }
 }
 
 func (s *session) SendMessage(m message) {
-	s.runningc <- func() { s.sendMessage(m) }
+	s.runningc <- func() { s.doSendMessage(m) }
+}
+
+func (s *session) SendResponse(r *response) {
+	s.runningc <- func() { s.doSendResponse(r) }
 }
 
 func (s *session) SendRequest(r *Request) error {
 	d := &done{ch: make(chan struct{})}
-	s.runningc <- func() { s.sendRequest(r, d.Done) }
+	s.runningc <- func() { s.doSendRequest(r, d.Done) }
 	return d.Wait()
-}
-
-func (s *session) SendResponse(r *response) {
-	s.runningc <- func() { s.sendResponse(r) }
-}
-
-func (s *session) done(id uint16, err error) {
-	if done, ok := s.dones[id]; ok {
-		delete(s.dones, id)
-		done(err)
-	}
-}
-
-func (s *session) callback(r *Response) {
-	if cb, ok := s.callbacks[r.Token]; ok {
-		delete(s.callbacks, r.Token)
-		s.servingc <- func() { cb.cb(r) }
-	}
 }
 
 func (s *session) serving() {
 	for {
 		select {
 		case <-s.donec:
+			close(s.servingc)
 			return
 		case f := <-s.servingc:
 			f()
@@ -171,6 +160,7 @@ func (s *session) running() {
 	for {
 		select {
 		case <-s.donec:
+			close(s.runningc)
 			return
 		case f := <-s.runningc:
 			f()
@@ -178,7 +168,7 @@ func (s *session) running() {
 	}
 }
 
-func (s *session) recv(data []byte) {
+func (s *session) doRecv(data []byte) {
 	var m message
 	if err := m.Unmarshal(data); err != nil {
 		log.Printf("message unmarshal: %v", err)
@@ -280,6 +270,26 @@ func (s *session) handleResponse(m message) {
 	})
 }
 
+func (s *session) done(id uint16, err error) {
+	if done, ok := s.dones[id]; ok {
+		delete(s.dones, id)
+		done(err)
+	}
+}
+
+func (s *session) callback(r *Response) {
+	if cb, ok := s.callbacks[r.Token]; ok {
+		delete(s.callbacks, r.Token)
+		s.servingc <- func() { cb.cb(r) }
+	}
+}
+
+func (s *session) doSendMessage(m message) {
+	if err := s.sendMessage(m); err != nil {
+		log.Printf("send message: %v", err)
+	}
+}
+
 func (s *session) sendMessage(m message) error {
 	log.Printf("send: %s\n", m.String())
 
@@ -291,40 +301,13 @@ func (s *session) sendMessage(m message) error {
 	return err
 }
 
-func (s *session) sendRequest(r *Request, done func(error)) {
-	// 发送消息
-	r.Options.SetPath(r.URL.Path)
-	m := message{
-		Type:      NON,
-		Code:      r.Method,
-		MessageID: s.genMessageID(),
-		Token:     s.genToken(),
-		Options:   r.Options,
-		Payload:   r.Payload,
-	}
-	if r.Confirmable {
-		m.Type = CON
-	}
-	if err := s.sendMessage(m); err != nil {
-		done(err)
-		return
-	}
-
-	// 设置Response回调
-	if r.Callback != nil {
-		s.callbacks[m.Token] = callback{ts: time.Now(), cb: r.Callback}
-	}
-
-	if r.Confirmable {
-		// 可靠消息待ACK返回后再通知上层发送结果
-		s.dones[m.MessageID] = done
-	} else {
-		// 非可靠消息直接通知上层请求发送成功
-		done(nil)
+func (s *session) doSendResponse(r *response) {
+	if err := s.sendResponse(r); err != nil {
+		log.Printf("send response: %v", err)
 	}
 }
 
-func (s *session) sendResponse(r *response) {
+func (s *session) sendResponse(r *response) error {
 	if !r.acked {
 		// 附带响应
 		m := message{
@@ -335,8 +318,7 @@ func (s *session) sendResponse(r *response) {
 			Options:   r.options,
 			Payload:   r.buffer.Bytes(),
 		}
-		s.sendMessage(m)
-		return
+		return s.sendMessage(m)
 	}
 
 	if r.code != Content || r.buffer.Len() > 0 {
@@ -352,9 +334,49 @@ func (s *session) sendResponse(r *response) {
 		if r.confirmable {
 			m.Type = CON
 		}
-		s.sendMessage(m)
-		return
+		return s.sendMessage(m)
 	}
+	return nil
+}
+
+func (s *session) doSendRequest(r *Request, done func(error)) {
+	if err := s.sendRequest(r, done); err != nil {
+		log.Printf("send request: %v", err)
+	}
+}
+
+func (s *session) sendRequest(r *Request, done func(error)) error {
+	// 发送消息
+	r.Options.SetPath(r.URL.Path)
+	m := message{
+		Type:      NON,
+		Code:      r.Method,
+		MessageID: s.genMessageID(),
+		Token:     s.genToken(),
+		Options:   r.Options,
+		Payload:   r.Payload,
+	}
+	if r.Confirmable {
+		m.Type = CON
+	}
+	if err := s.sendMessage(m); err != nil {
+		done(err)
+		return err
+	}
+
+	// 设置Response回调
+	if r.Callback != nil {
+		s.callbacks[m.Token] = callback{ts: time.Now(), cb: r.Callback}
+	}
+
+	if r.Confirmable {
+		// 可靠消息待ACK返回后再通知上层发送结果
+		s.dones[m.MessageID] = done
+	} else {
+		// 非可靠消息直接通知上层请求发送成功
+		done(nil)
+	}
+	return nil
 }
 
 func (s *session) genMessageID() uint16 {
