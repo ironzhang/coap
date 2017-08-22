@@ -9,15 +9,7 @@ import (
 )
 
 func ListenAndServe(network, address string, h Handler) error {
-	addr, err := net.ResolveUDPAddr(network, address)
-	if err != nil {
-		return err
-	}
-	l, err := net.ListenUDP(network, addr)
-	if err != nil {
-		return err
-	}
-	return (&Server{Handler: h}).Serve(l)
+	return (&Server{Handler: h}).ListenAndServe(network, address)
 }
 
 // Server 定义了运行一个COAP Server的参数
@@ -26,6 +18,19 @@ type Server struct {
 
 	mu       sync.RWMutex
 	sessions map[string]*session
+}
+
+// ListenAndServe 监听在指定地址并提供COAP服务
+func (s *Server) ListenAndServe(network, address string) error {
+	addr, err := net.ResolveUDPAddr(network, address)
+	if err != nil {
+		return err
+	}
+	l, err := net.ListenUDP(network, addr)
+	if err != nil {
+		return err
+	}
+	return s.Serve(l)
 }
 
 // Serve 提供COAP服务
