@@ -24,3 +24,7 @@ var (
 	EXCHANGE_LIFETIME = 247 * time.Second
 	NON_LIFETIME      = 145 * time.Second
 )
+
+var (
+	Verbose = true
+)
