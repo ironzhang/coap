@@ -2,6 +2,7 @@ package coap
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -283,7 +284,8 @@ type fixHeader struct {
 }
 
 func (m *message) String() string {
-	return fmt.Sprintf("Type: %s, Code: %s, MessageID: %d, Token: %s", m.Type.String(), m.Code.String(), m.MessageID, m.Token)
+	return fmt.Sprintf("Type: %s, Code: %s, MessageID: %d, Token: %s", m.Type.String(), m.Code.String(), m.MessageID,
+		base64.StdEncoding.EncodeToString([]byte(m.Token)))
 }
 
 func (m *message) Marshal() ([]byte, error) {

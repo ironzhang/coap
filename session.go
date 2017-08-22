@@ -2,6 +2,7 @@ package coap
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"io"
 	"log"
@@ -92,6 +93,11 @@ type callback struct {
 	cb func(*Response)
 }
 
+type msgstate struct {
+	time time.Time
+	data []byte
+}
+
 type session struct {
 	writer  io.Writer
 	addr    net.Addr
@@ -102,8 +108,10 @@ type session struct {
 	runningc chan func()
 
 	// 以下字段只能在running协程中访问
+	seq       uint16
 	dones     map[uint16]func(error)
 	callbacks map[string]callback
+	msgstates map[uint16]msgstate
 }
 
 func newSession(w io.Writer, a net.Addr, h Handler) *session {
@@ -119,6 +127,7 @@ func (s *session) Init(w io.Writer, a net.Addr, h Handler) *session {
 	s.runningc = make(chan func(), 8)
 	s.dones = make(map[uint16]func(error))
 	s.callbacks = make(map[string]callback)
+	s.msgstates = make(map[uint16]msgstate)
 	go s.serving()
 	go s.running()
 	return s
@@ -229,6 +238,20 @@ func (s *session) handleRST(m message) {
 }
 
 func (s *session) handleRequest(m message) {
+	// 去重处理
+	if state, ok := s.msgstates[m.MessageID]; ok && time.Since(state.time) > EXCHANGE_LIFETIME {
+		if len(state.data) <= 0 {
+			return
+		}
+		if _, err := s.writer.Write(state.data); err != nil {
+			log.Printf("write state data: %v", err)
+			return
+		}
+		return
+	}
+	s.msgstates[m.MessageID] = msgstate{time: time.Now()}
+
+	// 未设置handler直接返回NotFound
 	if s.handler == nil {
 		m := message{
 			Type:      ACK,
@@ -243,6 +266,7 @@ func (s *session) handleRequest(m message) {
 		return
 	}
 
+	// 由serving协程调用上层handler处理请求
 	s.servingc <- func() {
 		req := &Request{
 			Confirmable: m.Type == CON,
@@ -303,6 +327,15 @@ func (s *session) sendMessage(m message) error {
 	if err != nil {
 		return err
 	}
+
+	if m.Type == ACK || m.Type == RST {
+		ts := time.Now()
+		if state, ok := s.msgstates[m.MessageID]; ok {
+			ts = state.time
+		}
+		s.msgstates[m.MessageID] = msgstate{time: ts, data: data}
+	}
+
 	_, err = s.writer.Write(data)
 	return err
 }
@@ -386,9 +419,12 @@ func (s *session) sendRequest(r *Request, done func(error)) error {
 }
 
 func (s *session) genMessageID() uint16 {
-	return 1
+	s.seq++
+	return s.seq
 }
 
 func (s *session) genToken() string {
-	return ""
+	b := make([]byte, 8)
+	rand.Read(b)
+	return string(b)
 }
