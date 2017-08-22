@@ -60,8 +60,7 @@ func (s *Server) SendRequest(req *Request) error {
 	if !ok {
 		return fmt.Errorf("session(%s) not found", addr)
 	}
-	sess.SendRequest(req)
-	return req.wait()
+	return sess.SendRequest(req)
 }
 
 func (s *Server) addSession(conn net.PacketConn, addr net.Addr) *session {

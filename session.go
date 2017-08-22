@@ -71,6 +71,21 @@ func (r *response) Write(p []byte) (int, error) {
 	return r.buffer.Write(p)
 }
 
+type done struct {
+	err error
+	ch  chan struct{}
+}
+
+func (d *done) Done(err error) {
+	d.err = err
+	close(d.ch)
+}
+
+func (d *done) Wait() error {
+	<-d.ch
+	return d.err
+}
+
 type callback struct {
 	ts time.Time
 	cb func(*Response)
@@ -117,8 +132,10 @@ func (s *session) SendMessage(m message) {
 	s.runningc <- func() { s.sendMessage(m) }
 }
 
-func (s *session) SendRequest(r *Request) {
-	s.runningc <- func() { s.sendRequest(r) }
+func (s *session) SendRequest(r *Request) error {
+	d := &done{ch: make(chan struct{})}
+	s.runningc <- func() { s.sendRequest(r, d.Done) }
+	return d.Wait()
 }
 
 func (s *session) SendResponse(r *response) {
@@ -274,7 +291,7 @@ func (s *session) sendMessage(m message) error {
 	return err
 }
 
-func (s *session) sendRequest(r *Request) {
+func (s *session) sendRequest(r *Request, done func(error)) {
 	// 发送消息
 	r.Options.SetPath(r.URL.Path)
 	m := message{
@@ -289,7 +306,7 @@ func (s *session) sendRequest(r *Request) {
 		m.Type = CON
 	}
 	if err := s.sendMessage(m); err != nil {
-		r.done(err)
+		done(err)
 		return
 	}
 
@@ -300,10 +317,10 @@ func (s *session) sendRequest(r *Request) {
 
 	if r.Confirmable {
 		// 可靠消息待ACK返回后再通知上层发送结果
-		s.dones[m.MessageID] = r.done
+		s.dones[m.MessageID] = done
 	} else {
 		// 非可靠消息直接通知上层请求发送成功
-		r.done(nil)
+		done(nil)
 	}
 }
 

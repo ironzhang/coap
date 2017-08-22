@@ -29,8 +29,7 @@ func (c *Client) SendRequest(req *Request) error {
 	if err != nil {
 		return err
 	}
-	conn.sess.SendRequest(req)
-	return req.wait()
+	return conn.sess.SendRequest(req)
 }
 
 func (c *Client) addConn(addr *net.UDPAddr) (*clientConn, error) {
