@@ -210,7 +210,8 @@ func (s *session) handleMSG(m message) {
 
 	// 去重处理
 	if state, ok := s.msgstates[m.MessageID]; ok && time.Since(state.time) <= EXCHANGE_LIFETIME {
-		if len(state.data) <= 0 {
+		if m.Type != CON || len(state.data) <= 0 {
+			log.Printf("ignore duplicate messages(%d)", m.MessageID)
 			return
 		}
 		if _, err := s.writer.Write(state.data); err != nil {
