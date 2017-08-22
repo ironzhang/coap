@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"time"
 )
 
@@ -93,6 +94,7 @@ type callback struct {
 
 type session struct {
 	writer  io.Writer
+	addr    net.Addr
 	handler Handler
 
 	donec    chan struct{}
@@ -104,12 +106,13 @@ type session struct {
 	callbacks map[string]callback
 }
 
-func newSession(w io.Writer, h Handler) *session {
-	return new(session).Init(w, h)
+func newSession(w io.Writer, a net.Addr, h Handler) *session {
+	return new(session).Init(w, a, h)
 }
 
-func (s *session) Init(w io.Writer, h Handler) *session {
+func (s *session) Init(w io.Writer, a net.Addr, h Handler) *session {
 	s.writer = w
+	s.addr = a
 	s.handler = h
 	s.donec = make(chan struct{})
 	s.servingc = make(chan func(), 8)
@@ -174,7 +177,7 @@ func (s *session) doRecv(data []byte) {
 		log.Printf("message unmarshal: %v", err)
 		return
 	}
-	log.Printf("recv: %s\n", m.String())
+	//log.Printf("recv: %s\n", m.String())
 
 	switch m.Type {
 	case CON, NON:
@@ -211,11 +214,12 @@ func (s *session) handleACK(m message) {
 	s.done(m.MessageID, nil)
 	if m.Code != Content || len(m.Payload) > 0 {
 		s.callback(&Response{
-			Ack:     true,
-			Status:  m.Code,
-			Options: m.Options,
-			Token:   m.Token,
-			Payload: m.Payload,
+			Ack:        true,
+			Status:     m.Code,
+			Options:    m.Options,
+			Token:      m.Token,
+			Payload:    m.Payload,
+			RemoteAddr: s.addr,
 		})
 	}
 }
@@ -246,6 +250,7 @@ func (s *session) handleRequest(m message) {
 			Options:     m.Options,
 			Token:       m.Token,
 			Payload:     m.Payload,
+			RemoteAddr:  s.addr,
 		}
 		resp := &response{
 			session:     s,
@@ -262,11 +267,12 @@ func (s *session) handleRequest(m message) {
 
 func (s *session) handleResponse(m message) {
 	s.callback(&Response{
-		Ack:     false,
-		Status:  m.Code,
-		Options: m.Options,
-		Token:   m.Token,
-		Payload: m.Payload,
+		Ack:        false,
+		Status:     m.Code,
+		Options:    m.Options,
+		Token:      m.Token,
+		Payload:    m.Payload,
+		RemoteAddr: s.addr,
 	})
 }
 
@@ -291,7 +297,7 @@ func (s *session) doSendMessage(m message) {
 }
 
 func (s *session) sendMessage(m message) error {
-	log.Printf("send: %s\n", m.String())
+	//log.Printf("send: %s\n", m.String())
 
 	data, err := m.Marshal()
 	if err != nil {

@@ -1,6 +1,9 @@
 package coap
 
-import "net/url"
+import (
+	"net"
+	"net/url"
+)
 
 type Request struct {
 	Confirmable bool
@@ -9,6 +12,7 @@ type Request struct {
 	URL         *url.URL
 	Token       string
 	Payload     []byte
+	RemoteAddr  net.Addr
 	Callback    func(*Response)
 }
 

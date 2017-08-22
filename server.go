@@ -76,7 +76,7 @@ func (s *Server) addSession(conn net.PacketConn, addr net.Addr) *session {
 	}
 	sess, ok := s.sessions[addr.String()]
 	if !ok {
-		sess = newSession(&serverConn{conn: conn, addr: addr}, s.Handler)
+		sess = newSession(&serverConn{conn: conn, addr: addr}, addr, s.Handler)
 		s.sessions[addr.String()] = sess
 	}
 	return sess
