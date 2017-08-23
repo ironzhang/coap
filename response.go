@@ -1,10 +1,14 @@
 package coap
 
-import "net"
+import (
+	"net"
+
+	"github.com/ironzhang/coap/message"
+)
 
 type Response struct {
 	Ack        bool
-	Status     Code
+	Status     message.Code
 	Options    Options
 	Token      string
 	Payload    []byte

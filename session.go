@@ -8,7 +8,12 @@ import (
 	"log"
 	"net"
 	"time"
+
+	"github.com/ironzhang/coap/internal/stack"
+	"github.com/ironzhang/coap/message"
 )
+
+var Verbose = true
 
 var ErrRST = errors.New("reset by peer")
 
@@ -20,7 +25,7 @@ type Handler interface {
 // ResponseWriter 用于构造COAP响应
 type ResponseWriter interface {
 	// Ack 回复空ACK，服务器无法立即响应，可先调用该方法返回一个空的ACK
-	Ack(Code)
+	Ack(message.Code)
 
 	// SetConfirmable 设置响应为可靠消息，作为单独响应时生效
 	SetConfirmable()
@@ -29,7 +34,7 @@ type ResponseWriter interface {
 	Options() Options
 
 	// WriteCode 设置响应状态码，默认为Content
-	WriteCode(Code)
+	WriteCode(message.Code)
 
 	// Write 写入payload
 	Write([]byte) (int, error)
@@ -42,15 +47,15 @@ type response struct {
 	messageID   uint16
 	token       string
 	acked       bool
-	code        Code
+	code        message.Code
 	options     Options
 	buffer      bytes.Buffer
 	needAck     bool
 }
 
-func (r *response) Ack(code Code) {
+func (r *response) Ack(code message.Code) {
 	r.acked = true
-	m := message{
+	m := message.Message{
 		Type:      ACK,
 		Code:      code,
 		MessageID: r.messageID,
@@ -66,7 +71,7 @@ func (r *response) Options() Options {
 	return r.options
 }
 
-func (r *response) WriteCode(code Code) {
+func (r *response) WriteCode(code message.Code) {
 	r.code = code
 }
 
@@ -94,11 +99,6 @@ type callback struct {
 	cb func(*Response)
 }
 
-type msgstate struct {
-	time time.Time
-	data []byte
-}
-
 type session struct {
 	writer  io.Writer
 	addr    net.Addr
@@ -110,9 +110,9 @@ type session struct {
 
 	// 以下字段只能在running协程中访问
 	seq       uint16
+	stack     stack.Stack
 	dones     map[uint16]func(error)
 	callbacks map[string]callback
-	msgstates map[uint16]msgstate
 }
 
 func newSession(w io.Writer, a net.Addr, h Handler) *session {
@@ -128,7 +128,7 @@ func (s *session) Init(w io.Writer, a net.Addr, h Handler) *session {
 	s.runningc = make(chan func(), 8)
 	s.dones = make(map[uint16]func(error))
 	s.callbacks = make(map[string]callback)
-	s.msgstates = make(map[uint16]msgstate)
+	s.stack.Init(s, s)
 	go s.serving()
 	go s.running()
 	return s
@@ -139,11 +139,33 @@ func (s *session) Close() error {
 	return nil
 }
 
-func (s *session) Recv(data []byte) {
-	s.runningc <- func() { s.doRecv(data) }
+func (s *session) Recv(m message.Message) error {
+	switch m.Type {
+	case CON, NON:
+		s.handleMSG(m)
+	case ACK:
+		s.handleACK(m)
+	case RST:
+		s.handleRST(m)
+	default:
+	}
+	return nil
 }
 
-func (s *session) SendMessage(m message) {
+func (s *session) Send(m message.Message) error {
+	data, err := m.Marshal()
+	if err != nil {
+		return err
+	}
+	_, err = s.writer.Write(data)
+	return err
+}
+
+func (s *session) RecvData(data []byte) {
+	s.runningc <- func() { s.doRecvData(data) }
+}
+
+func (s *session) SendMessage(m message.Message) {
 	s.runningc <- func() { s.doSendMessage(m) }
 }
 
@@ -181,8 +203,8 @@ func (s *session) running() {
 	}
 }
 
-func (s *session) doRecv(data []byte) {
-	var m message
+func (s *session) doRecvData(data []byte) {
+	var m message.Message
 	if err := m.Unmarshal(data); err != nil {
 		log.Printf("message unmarshal: %v", err)
 		return
@@ -190,37 +212,16 @@ func (s *session) doRecv(data []byte) {
 	if Verbose {
 		log.Printf("recv: %s\n", m.String())
 	}
-
-	switch m.Type {
-	case CON, NON:
-		s.handleMSG(m)
-	case ACK:
-		s.handleACK(m)
-	case RST:
-		s.handleRST(m)
-	default:
+	if err := s.stack.Recv(m); err != nil {
+		log.Printf("stack recv: %v", err)
 	}
 }
 
-func (s *session) handleMSG(m message) {
+func (s *session) handleMSG(m message.Message) {
 	if m.Code == 0 {
 		// 空消息
 		return
 	}
-
-	// 去重处理
-	if state, ok := s.msgstates[m.MessageID]; ok && time.Since(state.time) <= EXCHANGE_LIFETIME {
-		if m.Type != CON || len(state.data) <= 0 {
-			log.Printf("ignore duplicate messages(%d)", m.MessageID)
-			return
-		}
-		if _, err := s.writer.Write(state.data); err != nil {
-			log.Printf("write state data: %v", err)
-			return
-		}
-		return
-	}
-	s.msgstates[m.MessageID] = msgstate{time: time.Now()}
 
 	c := m.Code >> 5
 	switch {
@@ -236,27 +237,9 @@ func (s *session) handleMSG(m message) {
 	}
 }
 
-func (s *session) handleACK(m message) {
-	s.done(m.MessageID, nil)
-	if m.Code != Content || len(m.Payload) > 0 {
-		s.callback(&Response{
-			Ack:        true,
-			Status:     m.Code,
-			Options:    m.Options,
-			Token:      m.Token,
-			Payload:    m.Payload,
-			RemoteAddr: s.addr,
-		})
-	}
-}
-
-func (s *session) handleRST(m message) {
-	s.done(m.MessageID, ErrRST)
-}
-
-func (s *session) handleRequest(m message) {
+func (s *session) handleRequest(m message.Message) {
 	if s.handler == nil {
-		resp := message{
+		resp := message.Message{
 			Type:      NON,
 			Code:      NotFound,
 			MessageID: m.MessageID,
@@ -296,7 +279,7 @@ func (s *session) handleRequest(m message) {
 	}
 }
 
-func (s *session) handleResponse(m message) {
+func (s *session) handleResponse(m message.Message) {
 	// 回调上层响应的Response处理函数
 	s.callback(&Response{
 		Ack:        false,
@@ -309,7 +292,7 @@ func (s *session) handleResponse(m message) {
 
 	// 对可靠消息响应回复一个空ACK
 	if m.Type == CON {
-		ack := message{
+		ack := message.Message{
 			Type:      ACK,
 			Code:      Content,
 			MessageID: m.MessageID,
@@ -318,6 +301,24 @@ func (s *session) handleResponse(m message) {
 			log.Printf("send message: %v", err)
 		}
 	}
+}
+
+func (s *session) handleACK(m message.Message) {
+	s.done(m.MessageID, nil)
+	if m.Code != Content || len(m.Payload) > 0 {
+		s.callback(&Response{
+			Ack:        true,
+			Status:     m.Code,
+			Options:    m.Options,
+			Token:      m.Token,
+			Payload:    m.Payload,
+			RemoteAddr: s.addr,
+		})
+	}
+}
+
+func (s *session) handleRST(m message.Message) {
+	s.done(m.MessageID, ErrRST)
 }
 
 func (s *session) done(id uint16, err error) {
@@ -334,30 +335,17 @@ func (s *session) callback(r *Response) {
 	}
 }
 
-func (s *session) doSendMessage(m message) {
+func (s *session) doSendMessage(m message.Message) {
 	if err := s.sendMessage(m); err != nil {
 		log.Printf("send message: %v", err)
 	}
 }
 
-func (s *session) sendMessage(m message) error {
+func (s *session) sendMessage(m message.Message) error {
 	if Verbose {
 		log.Printf("send: %s\n", m.String())
 	}
-
-	data, err := m.Marshal()
-	if err != nil {
-		return err
-	}
-
-	if m.Type == ACK || m.Type == RST {
-		if state, ok := s.msgstates[m.MessageID]; ok {
-			s.msgstates[m.MessageID] = msgstate{time: state.time, data: data}
-		}
-	}
-
-	_, err = s.writer.Write(data)
-	return err
+	return s.stack.Send(m)
 }
 
 func (s *session) doSendResponse(r *response) {
@@ -369,7 +357,7 @@ func (s *session) doSendResponse(r *response) {
 func (s *session) sendResponse(r *response) error {
 	if !r.acked && r.needAck {
 		// 附带响应
-		m := message{
+		m := message.Message{
 			Type:      ACK,
 			Code:      r.code,
 			MessageID: r.messageID,
@@ -382,7 +370,7 @@ func (s *session) sendResponse(r *response) error {
 
 	if r.code != Content || r.buffer.Len() > 0 {
 		// 单独响应
-		m := message{
+		m := message.Message{
 			Type:      NON,
 			Code:      r.code,
 			MessageID: s.genMessageID(),
@@ -407,7 +395,7 @@ func (s *session) doSendRequest(r *Request, done func(error)) {
 func (s *session) sendRequest(r *Request, done func(error)) error {
 	// 发送消息
 	r.Options.SetPath(r.URL.Path)
-	m := message{
+	m := message.Message{
 		Type:      NON,
 		Code:      r.Method,
 		MessageID: s.genMessageID(),

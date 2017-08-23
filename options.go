@@ -5,9 +5,11 @@ import (
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/ironzhang/coap/message"
 )
 
-type Options []Option
+type Options []message.Option
 
 func (options *Options) clone() Options {
 	cloneOptions := make(Options, len(*options))
@@ -19,7 +21,7 @@ func (options *Options) clone() Options {
 	return cloneOptions
 }
 
-func (options *Options) Add(id OptionID, v interface{}) {
+func (options *Options) Add(id message.OptionID, v interface{}) {
 	for i := range *options {
 		o := &(*options)[i]
 		if o.ID == id {
@@ -27,13 +29,13 @@ func (options *Options) Add(id OptionID, v interface{}) {
 			return
 		}
 	}
-	*options = append(*options, Option{
+	*options = append(*options, message.Option{
 		ID:     id,
 		Values: []interface{}{v}},
 	)
 }
 
-func (options *Options) Set(id OptionID, v interface{}) {
+func (options *Options) Set(id message.OptionID, v interface{}) {
 	for i := range *options {
 		o := &(*options)[i]
 		if o.ID == id {
@@ -41,13 +43,13 @@ func (options *Options) Set(id OptionID, v interface{}) {
 			return
 		}
 	}
-	*options = append(*options, Option{
+	*options = append(*options, message.Option{
 		ID:     id,
 		Values: []interface{}{v},
 	})
 }
 
-func (options *Options) Get(id OptionID) interface{} {
+func (options *Options) Get(id message.OptionID) interface{} {
 	for _, o := range *options {
 		if o.ID == id {
 			if len(o.Values) <= 0 {
@@ -59,7 +61,7 @@ func (options *Options) Get(id OptionID) interface{} {
 	return nil
 }
 
-func (options *Options) Del(id OptionID) {
+func (options *Options) Del(id message.OptionID) {
 	var results Options
 	for _, o := range *options {
 		if o.ID != id {
@@ -69,13 +71,13 @@ func (options *Options) Del(id OptionID) {
 	*options = results
 }
 
-func (options *Options) GetOption(id OptionID) (Option, bool) {
+func (options *Options) GetOption(id message.OptionID) (message.Option, bool) {
 	for _, o := range *options {
 		if o.ID == id {
 			return o, true
 		}
 	}
-	return Option{}, false
+	return message.Option{}, false
 }
 
 var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")
@@ -102,7 +104,7 @@ func (options *Options) Write(w io.Writer) error {
 	return nil
 }
 
-func (options *Options) SetStrings(id OptionID, ss []string) {
+func (options *Options) SetStrings(id message.OptionID, ss []string) {
 	options.Del(id)
 	for _, s := range ss {
 		options.Add(id, s)
@@ -113,5 +115,5 @@ func (options *Options) SetPath(path string) {
 	if len(path) > 0 && path[0] == '/' {
 		path = path[1:]
 	}
-	options.SetStrings(URIPath, strings.Split(path, "/"))
+	options.SetStrings(message.URIPath, strings.Split(path, "/"))
 }

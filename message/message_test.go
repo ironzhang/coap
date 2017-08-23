@@ -1,4 +1,4 @@
-package coap
+package message
 
 import (
 	"bytes"
@@ -173,7 +173,7 @@ func TestMessageAddOption(t *testing.T) {
 		{ID: OptionID(4), Values: []interface{}{1}},
 	}
 
-	var m message
+	var m Message
 	for _, i := range inputs {
 		m.addOption(i.id, i.val)
 	}
@@ -184,11 +184,11 @@ func TestMessageAddOption(t *testing.T) {
 
 func TestMessage(t *testing.T) {
 	tests := []struct {
-		m message
+		m Message
 		b []byte
 	}{
 		{
-			m: message{
+			m: Message{
 				Type:      CON,
 				Code:      GET,
 				MessageID: 12345,
@@ -196,7 +196,7 @@ func TestMessage(t *testing.T) {
 			b: []byte{0x40, 0x1, 0x30, 0x39},
 		},
 		{
-			m: message{
+			m: Message{
 				Type:      CON,
 				Code:      GET,
 				MessageID: 12345,
@@ -211,7 +211,7 @@ func TestMessage(t *testing.T) {
 			},
 		},
 		{
-			m: message{
+			m: Message{
 				Type:      CON,
 				Code:      GET,
 				MessageID: 12345,
@@ -240,7 +240,7 @@ func TestMessage(t *testing.T) {
 		}
 	}
 	for i, tt := range tests {
-		var m message
+		var m Message
 		err := m.Unmarshal(tt.b)
 		if err != nil {
 			t.Fatalf("case%d: message unmarshal: %v", i, err)
@@ -266,7 +266,7 @@ func TestInvalidMessageParsing(t *testing.T) {
 		{0x40, 0x01, 0x30, 0x39, 0x4e, 0x01}, // Extended word length but no full extra length word
 	}
 	for _, data := range invalidPackets {
-		var m message
+		var m Message
 		if err := m.Unmarshal(data); err == nil {
 			t.Errorf("Unexpected success parsing short message (%#v): %v", data, m)
 		} else {

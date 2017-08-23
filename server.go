@@ -50,7 +50,7 @@ func (s *Server) Serve(l net.PacketConn) error {
 		}
 		data := make([]byte, n)
 		copy(data, buf)
-		s.addSession(l, addr).Recv(data)
+		s.addSession(l, addr).RecvData(data)
 	}
 	return nil
 }

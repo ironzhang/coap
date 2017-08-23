@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"reflect"
 	"testing"
+
+	"github.com/ironzhang/coap/message"
 )
 
 func OptionsString(o Options) string {
@@ -55,7 +57,7 @@ func TestOptionsClone(t *testing.T) {
 
 func TestOptionsAdd(t *testing.T) {
 	datas := []struct {
-		id  OptionID
+		id  message.OptionID
 		val interface{}
 	}{
 		{id: 0, val: 0},
@@ -81,7 +83,7 @@ func TestOptionsAdd(t *testing.T) {
 
 func TestOptionsSet(t *testing.T) {
 	datas := []struct {
-		id  OptionID
+		id  message.OptionID
 		val interface{}
 	}{
 		{id: 0, val: 0},
@@ -110,7 +112,7 @@ func TestOptionsGet(t *testing.T) {
 		{ID: 2, Values: []interface{}{0, 1}},
 	}
 	tests := []struct {
-		id  OptionID
+		id  message.OptionID
 		val interface{}
 	}{
 		{id: 0, val: 0},
@@ -133,18 +135,18 @@ func TestOptionsDel(t *testing.T) {
 		{ID: 2, Values: []interface{}{0, 1}},
 	}
 	tests := []struct {
-		ids     []OptionID
+		ids     []message.OptionID
 		options Options
 	}{
 		{
-			ids: []OptionID{1},
+			ids: []message.OptionID{1},
 			options: Options{
 				{ID: 0, Values: []interface{}{0}},
 				{ID: 2, Values: []interface{}{0, 1}},
 			},
 		},
 		{
-			ids: []OptionID{0, 2},
+			ids: []message.OptionID{0, 2},
 			options: Options{
 				{ID: 1, Values: []interface{}{1}},
 			},
@@ -169,13 +171,13 @@ func TestOptionsGetOption(t *testing.T) {
 		{ID: 2, Values: []interface{}{0, 1}},
 	}
 	tests := []struct {
-		id     OptionID
+		id     message.OptionID
 		ok     bool
-		option Option
+		option message.Option
 	}{
-		{id: 0, ok: true, option: Option{ID: 0, Values: []interface{}{0}}},
-		{id: 1, ok: true, option: Option{ID: 1, Values: []interface{}{1}}},
-		{id: 2, ok: true, option: Option{ID: 2, Values: []interface{}{0, 1}}},
+		{id: 0, ok: true, option: message.Option{ID: 0, Values: []interface{}{0}}},
+		{id: 1, ok: true, option: message.Option{ID: 1, Values: []interface{}{1}}},
+		{id: 2, ok: true, option: message.Option{ID: 2, Values: []interface{}{0, 1}}},
 		{id: 3, ok: false},
 	}
 	for i, tt := range tests {

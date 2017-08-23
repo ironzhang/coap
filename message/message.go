@@ -1,4 +1,4 @@
-package coap
+package message
 
 import (
 	"bytes"
@@ -268,7 +268,7 @@ type Option struct {
 	Values []interface{}
 }
 
-type message struct {
+type Message struct {
 	Type      Type
 	Code      Code
 	MessageID uint16
@@ -283,12 +283,12 @@ type fixHeader struct {
 	MessageID uint16
 }
 
-func (m *message) String() string {
+func (m *Message) String() string {
 	return fmt.Sprintf("Type: %s, Code: %s, MessageID: %d, Token: %s", m.Type.String(), m.Code.String(), m.MessageID,
 		base64.StdEncoding.EncodeToString([]byte(m.Token)))
 }
 
-func (m *message) Marshal() ([]byte, error) {
+func (m *Message) Marshal() ([]byte, error) {
 	var err error
 	var buf bytes.Buffer
 
@@ -336,7 +336,7 @@ func (m *message) Marshal() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (m *message) Unmarshal(data []byte) (err error) {
+func (m *Message) Unmarshal(data []byte) (err error) {
 	if len(data) < 4 {
 		return errors.New("short packet")
 	}
@@ -399,7 +399,7 @@ func (m *message) Unmarshal(data []byte) (err error) {
 	return nil
 }
 
-func (m *message) addOption(id OptionID, value interface{}) {
+func (m *Message) addOption(id OptionID, value interface{}) {
 	i := len(m.Options) - 1
 	if i >= 0 && m.Options[i].ID == id {
 		m.Options[i].Values = append(m.Options[i].Values, value)

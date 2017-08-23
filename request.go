@@ -3,11 +3,13 @@ package coap
 import (
 	"net"
 	"net/url"
+
+	"github.com/ironzhang/coap/message"
 )
 
 type Request struct {
 	Confirmable bool
-	Method      Code
+	Method      message.Code
 	Options     Options
 	URL         *url.URL
 	Token       string
@@ -16,7 +18,7 @@ type Request struct {
 	Callback    func(*Response)
 }
 
-func NewRequest(confirmable bool, method Code, urlstr string, payload []byte) (*Request, error) {
+func NewRequest(confirmable bool, method message.Code, urlstr string, payload []byte) (*Request, error) {
 	u, err := url.Parse(urlstr)
 	if err != nil {
 		return nil, err

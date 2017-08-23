@@ -77,6 +77,6 @@ func (c *clientConn) reading() {
 		}
 		data := make([]byte, n)
 		copy(data, buf)
-		c.sess.Recv(data)
+		c.sess.RecvData(data)
 	}
 }
