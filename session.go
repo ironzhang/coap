@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"time"
 
 	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack"
@@ -94,11 +93,6 @@ func (d *done) Wait() error {
 	return d.err
 }
 
-type callback struct {
-	ts time.Time
-	cb func(*Response)
-}
-
 type session struct {
 	writer  io.Writer
 	addr    net.Addr
@@ -112,7 +106,7 @@ type session struct {
 	seq       uint16
 	stack     stack.Stack
 	dones     map[uint16]func(error)
-	callbacks map[string]callback
+	callbacks map[string]func(*Response)
 }
 
 func newSession(w io.Writer, a net.Addr, h Handler) *session {
@@ -123,14 +117,18 @@ func (s *session) Init(w io.Writer, a net.Addr, h Handler) *session {
 	s.writer = w
 	s.addr = a
 	s.handler = h
+
 	s.donec = make(chan struct{})
 	s.servingc = make(chan func(), 8)
 	s.runningc = make(chan func(), 8)
-	s.dones = make(map[uint16]func(error))
-	s.callbacks = make(map[string]callback)
+
 	s.stack.Init(s, s)
+	s.dones = make(map[uint16]func(error))
+	s.callbacks = make(map[string]func(*Response))
+
 	go s.serving()
 	go s.running()
+
 	return s
 }
 
@@ -331,7 +329,7 @@ func (s *session) done(id uint16, err error) {
 func (s *session) callback(r *Response) {
 	if cb, ok := s.callbacks[r.Token]; ok {
 		delete(s.callbacks, r.Token)
-		s.servingc <- func() { cb.cb(r) }
+		s.servingc <- func() { cb(r) }
 	}
 }
 
@@ -413,7 +411,7 @@ func (s *session) sendRequest(r *Request, done func(error)) error {
 
 	// 设置Response回调
 	if r.Callback != nil {
-		s.callbacks[m.Token] = callback{ts: time.Now(), cb: r.Callback}
+		s.callbacks[m.Token] = r.Callback
 	}
 
 	if r.Confirmable {
