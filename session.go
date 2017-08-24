@@ -63,7 +63,7 @@ func (r *response) Ack(code message.Code) {
 		Code:      code,
 		MessageID: r.messageID,
 	}
-	r.session.SendMessage(m)
+	r.session.postMessage(m)
 }
 
 func (r *response) SetConfirmable() {
@@ -125,10 +125,10 @@ type session struct {
 }
 
 func newSession(w io.Writer, a net.Addr, h Handler) *session {
-	return new(session).Init(w, a, h)
+	return new(session).init(w, a, h)
 }
 
-func (s *session) Init(w io.Writer, a net.Addr, h Handler) *session {
+func (s *session) init(w io.Writer, a net.Addr, h Handler) *session {
 	s.writer = w
 	s.addr = a
 	s.handler = h
@@ -137,7 +137,7 @@ func (s *session) Init(w io.Writer, a net.Addr, h Handler) *session {
 	s.servingc = make(chan func(), 8)
 	s.runningc = make(chan func(), 8)
 
-	s.stack.Init(s, s, s.Timeout)
+	s.stack.Init(s, s, s.ackTimeout)
 	s.dones = make(map[uint16]func(error))
 	s.callbacks = make(map[string]func(*Response))
 
@@ -145,55 +145,6 @@ func (s *session) Init(w io.Writer, a net.Addr, h Handler) *session {
 	go s.running()
 
 	return s
-}
-
-func (s *session) Close() error {
-	close(s.donec)
-	return nil
-}
-
-func (s *session) Recv(m message.Message) error {
-	switch m.Type {
-	case CON, NON:
-		s.handleMSG(m)
-	case ACK:
-		s.handleACK(m)
-	case RST:
-		s.handleRST(m)
-	default:
-	}
-	return nil
-}
-
-func (s *session) Send(m message.Message) error {
-	data, err := m.Marshal()
-	if err != nil {
-		return err
-	}
-	_, err = s.writer.Write(data)
-	return err
-}
-
-func (s *session) Timeout(m message.Message) {
-	s.done(m.MessageID, ErrTimeout)
-}
-
-func (s *session) RecvData(data []byte) {
-	s.runningc <- func() { s.doRecvData(data) }
-}
-
-func (s *session) SendMessage(m message.Message) {
-	s.runningc <- func() { s.doSendMessage(m) }
-}
-
-func (s *session) SendResponse(r *response) {
-	s.runningc <- func() { s.doSendResponse(r) }
-}
-
-func (s *session) SendRequest(r *Request) error {
-	d := &done{ch: make(chan struct{})}
-	s.runningc <- func() { s.doSendRequest(r, d.Done) }
-	return d.Wait(r.Timeout)
 }
 
 func (s *session) serving() {
@@ -224,18 +175,22 @@ func (s *session) running() {
 	}
 }
 
-func (s *session) doRecvData(data []byte) {
-	var m message.Message
-	if err := m.Unmarshal(data); err != nil {
-		log.Printf("message unmarshal: %v", err)
-		return
+func (s *session) Close() error {
+	close(s.donec)
+	return nil
+}
+
+func (s *session) Recv(m message.Message) error {
+	switch m.Type {
+	case CON, NON:
+		s.handleMSG(m)
+	case ACK:
+		s.handleACK(m)
+	case RST:
+		s.handleRST(m)
+	default:
 	}
-	if Verbose {
-		log.Printf("recv: %s\n", m.String())
-	}
-	if err := s.stack.Recv(m); err != nil {
-		log.Printf("stack recv: %v", err)
-	}
+	return nil
 }
 
 func (s *session) handleMSG(m message.Message) {
@@ -296,7 +251,7 @@ func (s *session) handleRequest(m message.Message) {
 			needAck:     req.Confirmable,
 		}
 		s.handler.ServeCOAP(resp, req)
-		s.SendResponse(resp)
+		s.postResponse(resp)
 	}
 }
 
@@ -342,23 +297,44 @@ func (s *session) handleRST(m message.Message) {
 	s.done(m.MessageID, ErrRST)
 }
 
-func (s *session) done(id uint16, err error) {
-	if done, ok := s.dones[id]; ok {
-		delete(s.dones, id)
-		done(err)
+func (s *session) Send(m message.Message) error {
+	data, err := m.Marshal()
+	if err != nil {
+		return err
+	}
+	_, err = s.writer.Write(data)
+	return err
+}
+
+func (s *session) ackTimeout(m message.Message) {
+	s.done(m.MessageID, ErrTimeout)
+}
+
+func (s *session) recvData(data []byte) {
+	s.runningc <- func() {
+		var m message.Message
+		if err := m.Unmarshal(data); err != nil {
+			log.Printf("message unmarshal: %v", err)
+			return
+		}
+		s.recvMessage(m)
 	}
 }
 
-func (s *session) callback(r *Response) {
-	if cb, ok := s.callbacks[r.Token]; ok {
-		delete(s.callbacks, r.Token)
-		s.servingc <- func() { cb(r) }
+func (s *session) recvMessage(m message.Message) {
+	if Verbose {
+		log.Printf("recv: %s\n", m.String())
+	}
+	if err := s.stack.Recv(m); err != nil {
+		log.Printf("stack recv: %v", err)
 	}
 }
 
-func (s *session) doSendMessage(m message.Message) {
-	if err := s.sendMessage(m); err != nil {
-		log.Printf("send message: %v", err)
+func (s *session) postMessage(m message.Message) {
+	s.runningc <- func() {
+		if err := s.sendMessage(m); err != nil {
+			log.Printf("send message: %v", err)
+		}
 	}
 }
 
@@ -369,9 +345,11 @@ func (s *session) sendMessage(m message.Message) error {
 	return s.stack.Send(m)
 }
 
-func (s *session) doSendResponse(r *response) {
-	if err := s.sendResponse(r); err != nil {
-		log.Printf("send response: %v", err)
+func (s *session) postResponse(r *response) {
+	s.runningc <- func() {
+		if err := s.sendResponse(r); err != nil {
+			log.Printf("send response: %v", err)
+		}
 	}
 }
 
@@ -407,10 +385,14 @@ func (s *session) sendResponse(r *response) error {
 	return nil
 }
 
-func (s *session) doSendRequest(r *Request, done func(error)) {
-	if err := s.sendRequest(r, done); err != nil {
-		log.Printf("send request: %v", err)
+func (s *session) postRequest(r *Request) error {
+	d := &done{ch: make(chan struct{})}
+	s.runningc <- func() {
+		if err := s.sendRequest(r, d.Done); err != nil {
+			log.Printf("send request: %v", err)
+		}
 	}
+	return d.Wait(r.Timeout)
 }
 
 func (s *session) sendRequest(r *Request, done func(error)) error {
@@ -445,6 +427,20 @@ func (s *session) sendRequest(r *Request, done func(error)) error {
 		done(nil)
 	}
 	return nil
+}
+
+func (s *session) done(id uint16, err error) {
+	if done, ok := s.dones[id]; ok {
+		delete(s.dones, id)
+		done(err)
+	}
+}
+
+func (s *session) callback(r *Response) {
+	if cb, ok := s.callbacks[r.Token]; ok {
+		delete(s.callbacks, r.Token)
+		s.servingc <- func() { cb(r) }
+	}
 }
 
 func (s *session) genMessageID() uint16 {
