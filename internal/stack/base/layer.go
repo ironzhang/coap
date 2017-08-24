@@ -58,24 +58,28 @@ func (l *BaseLayer) SendRST(messageID uint16) error {
 	return l.Send(m)
 }
 
-type NopRecver struct {
+type CountRecver struct {
 	Writer io.Writer
+	Count  int
 }
 
-func (p NopRecver) Recv(m message.Message) error {
+func (p *CountRecver) Recv(m message.Message) error {
 	if p.Writer != nil {
 		fmt.Fprintf(p.Writer, "Recv: %v\n", m.String())
 	}
+	p.Count++
 	return nil
 }
 
-type NopSender struct {
+type CountSender struct {
 	Writer io.Writer
+	Count  int
 }
 
-func (p NopSender) Send(m message.Message) error {
+func (p *CountSender) Send(m message.Message) error {
 	if p.Writer != nil {
 		fmt.Fprintf(p.Writer, "Send: %v\n", m.String())
 	}
+	p.Count++
 	return nil
 }
