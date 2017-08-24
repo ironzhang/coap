@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 
 	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack"
@@ -14,7 +15,10 @@ import (
 
 var Verbose = true
 
-var ErrRST = errors.New("reset by peer")
+var (
+	ErrRST     = errors.New("reset by peer")
+	ErrTimeout = errors.New("wait ack timeout")
+)
 
 // Handler 响应COAP请求的接口
 type Handler interface {
@@ -122,7 +126,7 @@ func (s *session) Init(w io.Writer, a net.Addr, h Handler) *session {
 	s.servingc = make(chan func(), 8)
 	s.runningc = make(chan func(), 8)
 
-	s.stack.Init(s, s)
+	s.stack.Init(s, s, s.Timeout)
 	s.dones = make(map[uint16]func(error))
 	s.callbacks = make(map[string]func(*Response))
 
@@ -159,6 +163,10 @@ func (s *session) Send(m message.Message) error {
 	return err
 }
 
+func (s *session) Timeout(m message.Message) {
+	s.done(m.MessageID, ErrTimeout)
+}
+
 func (s *session) RecvData(data []byte) {
 	s.runningc <- func() { s.doRecvData(data) }
 }
@@ -190,6 +198,8 @@ func (s *session) serving() {
 }
 
 func (s *session) running() {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
 	for {
 		select {
 		case <-s.donec:
@@ -197,6 +207,8 @@ func (s *session) running() {
 			return
 		case f := <-s.runningc:
 			f()
+		case <-t.C:
+			s.stack.Update()
 		}
 	}
 }

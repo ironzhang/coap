@@ -59,6 +59,11 @@ func NewLayer() *Layer {
 }
 
 func (l *Layer) Update() {
+	for id, s := range l.states {
+		if l.timeout(s) {
+			delete(l.states, id)
+		}
+	}
 }
 
 func (l *Layer) Recv(m message.Message) error {

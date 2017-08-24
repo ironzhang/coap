@@ -19,8 +19,11 @@ type Setter interface {
 	SetSender(Sender)
 }
 
-type Layer interface {
+type Updater interface {
 	Update()
+}
+
+type Layer interface {
 	Setter
 	Recver
 	Sender
