@@ -2,6 +2,7 @@ package reliability
 
 import (
 	"errors"
+	"math/rand"
 	"time"
 
 	"github.com/ironzhang/coap/internal/message"
@@ -83,7 +84,7 @@ func (l *Layer) Send(m message.Message) error {
 func (l *Layer) send(s *state) error {
 	s.LastRetransmit = time.Now()
 	if s.Retransmit == 0 {
-		s.Timeout = l.AckTimeout
+		s.Timeout = l.randAckTimeout()
 	} else {
 		s.Timeout *= 2
 	}
@@ -118,4 +119,12 @@ func (l *Layer) delState(m message.Message) bool {
 func (l *Layer) getState(m message.Message) (*state, bool) {
 	s, ok := l.states[m.MessageID]
 	return s, ok
+}
+
+func (l *Layer) randAckTimeout() time.Duration {
+	factor := l.AckRandomFactor - 1
+	if factor < 0 {
+		factor = 0
+	}
+	return l.AckTimeout + time.Duration(rand.Float64()*factor*float64(l.AckTimeout))
 }

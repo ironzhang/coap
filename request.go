@@ -3,6 +3,7 @@ package coap
 import (
 	"net"
 	"net/url"
+	"time"
 
 	"github.com/ironzhang/coap/internal/message"
 )
@@ -15,6 +16,7 @@ type Request struct {
 	Token       string
 	Payload     []byte
 	RemoteAddr  net.Addr
+	Timeout     time.Duration
 	Callback    func(*Response)
 }
 

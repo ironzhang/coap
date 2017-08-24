@@ -92,9 +92,20 @@ func (d *done) Done(err error) {
 	close(d.ch)
 }
 
-func (d *done) Wait() error {
-	<-d.ch
-	return d.err
+func (d *done) Wait(timeout time.Duration) error {
+	var ch <-chan time.Time
+	if timeout > 0 {
+		t := time.NewTimer(timeout)
+		defer t.Stop()
+		ch = t.C
+	}
+
+	select {
+	case <-d.ch:
+		return d.err
+	case <-ch:
+		return ErrTimeout
+	}
 }
 
 type session struct {
@@ -182,7 +193,7 @@ func (s *session) SendResponse(r *response) {
 func (s *session) SendRequest(r *Request) error {
 	d := &done{ch: make(chan struct{})}
 	s.runningc <- func() { s.doSendRequest(r, d.Done) }
-	return d.Wait()
+	return d.Wait(r.Timeout)
 }
 
 func (s *session) serving() {
