@@ -4,7 +4,7 @@ import (
 	"net"
 	"net/url"
 
-	"github.com/ironzhang/coap/message"
+	"github.com/ironzhang/coap/internal/message"
 )
 
 type Request struct {

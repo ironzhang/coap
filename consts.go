@@ -1,6 +1,6 @@
 package coap
 
-import "github.com/ironzhang/coap/message"
+import "github.com/ironzhang/coap/internal/message"
 
 const (
 	CON = message.CON

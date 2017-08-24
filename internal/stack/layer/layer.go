@@ -3,7 +3,7 @@ package layer
 import (
 	"fmt"
 
-	"github.com/ironzhang/coap/message"
+	"github.com/ironzhang/coap/internal/message"
 )
 
 type Recver interface {

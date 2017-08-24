@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack/layer"
-	"github.com/ironzhang/coap/message"
 )
 
 var (

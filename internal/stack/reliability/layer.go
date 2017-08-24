@@ -1,8 +1,8 @@
 package reliability
 
 import (
+	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack/layer"
-	"github.com/ironzhang/coap/message"
 )
 
 var _ layer.Layer = &Layer{}

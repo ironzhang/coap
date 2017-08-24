@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ironzhang/coap/message"
+	"github.com/ironzhang/coap/internal/message"
 )
 
 func OptionsString(o Options) string {

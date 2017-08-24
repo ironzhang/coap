@@ -9,8 +9,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack"
-	"github.com/ironzhang/coap/message"
 )
 
 var Verbose = true

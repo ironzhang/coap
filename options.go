@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ironzhang/coap/message"
+	"github.com/ironzhang/coap/internal/message"
 )
 
 type Options []message.Option

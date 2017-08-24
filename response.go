@@ -3,7 +3,7 @@ package coap
 import (
 	"net"
 
-	"github.com/ironzhang/coap/message"
+	"github.com/ironzhang/coap/internal/message"
 )
 
 type Response struct {
