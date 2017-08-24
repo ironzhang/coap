@@ -3,7 +3,7 @@ package base
 import "time"
 
 // CoAP协议参数
-var (
+const (
 	ACK_TIMEOUT       = 2 * time.Second
 	ACK_RANDOM_FACTOR = 1.5
 	MAX_RETRANSMIT    = 4
@@ -13,7 +13,7 @@ var (
 )
 
 // 传输参数衍生时间
-var (
+const (
 	MAX_TRANSMIT_SPAN = 45 * time.Second
 	MAX_TRANSMIT_WAIT = 93 * time.Second
 	MAX_LATENCY       = 100 * time.Second
