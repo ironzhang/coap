@@ -19,14 +19,11 @@ type Setter interface {
 	SetSender(Sender)
 }
 
-type Updater interface {
-	Update()
-}
-
 type Layer interface {
-	Setter
+	Update()
 	Recver
 	Sender
+	Setter
 }
 
 type BaseLayer struct {

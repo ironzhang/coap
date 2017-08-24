@@ -7,30 +7,34 @@ import (
 	"github.com/ironzhang/coap/internal/stack/reliability"
 )
 
+// Stack coap协议栈
 type Stack struct {
-	base.Recver
-	base.Sender
+	recver base.Recver
+	sender base.Sender
 	layers []base.Layer
 }
 
-func NewStack(recver base.Recver, sender base.Sender, timeout func(message.Message)) *Stack {
-	return new(Stack).Init(recver, sender, timeout)
-}
-
-func (s *Stack) Init(recver base.Recver, sender base.Sender, timeout func(message.Message)) *Stack {
-	s.Recver, s.Sender, s.layers = makeLayers(
-		recver, sender,
+func (s *Stack) Init(recver base.Recver, sender base.Sender, ackTimeout func(message.Message)) *Stack {
+	s.recver, s.sender, s.layers = makeLayers(
+		recver,
+		sender,
 		deduplication.NewLayer(),
-		reliability.NewLayer(timeout),
+		reliability.NewLayer(ackTimeout),
 	)
 	return s
 }
 
+func (s *Stack) Recv(m message.Message) error {
+	return s.recver.Recv(m)
+}
+
+func (s *Stack) Send(m message.Message) error {
+	return s.sender.Send(m)
+}
+
 func (s *Stack) Update() {
 	for _, l := range s.layers {
-		if u, ok := l.(base.Updater); ok {
-			u.Update()
-		}
+		l.Update()
 	}
 }
 
