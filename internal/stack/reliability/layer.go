@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ironzhang/coap/internal/message"
-	"github.com/ironzhang/coap/internal/stack/layer"
+	"github.com/ironzhang/coap/internal/stack/base"
 )
 
 var (
@@ -22,27 +22,27 @@ type state struct {
 	Timeout        time.Duration
 }
 
-var _ layer.Layer = &Layer{}
+var _ base.Layer = &Layer{}
 
 type Layer struct {
-	layer.BaseLayer
-	Timeout         func(message.Message)
+	base.BaseLayer
 	MaxRetransmit   int
 	MaxTransmitSpan time.Duration
 	AckTimeout      time.Duration
 	AckRandomFactor float64
 
-	states map[uint16]*state
+	timeout func(message.Message)
+	states  map[uint16]*state
 }
 
 func NewLayer(timeout func(message.Message)) *Layer {
 	return &Layer{
-		BaseLayer:       layer.BaseLayer{Name: "reliability"},
-		Timeout:         timeout,
-		MaxRetransmit:   4,
-		MaxTransmitSpan: 45 * time.Second,
-		AckTimeout:      2 * time.Second,
-		AckRandomFactor: 1.5,
+		BaseLayer:       base.BaseLayer{Name: "reliability"},
+		MaxRetransmit:   base.MAX_RETRANSMIT,
+		MaxTransmitSpan: base.MAX_TRANSMIT_SPAN,
+		AckTimeout:      base.ACK_TIMEOUT,
+		AckRandomFactor: base.ACK_RANDOM_FACTOR,
+		timeout:         timeout,
 		states:          make(map[uint16]*state),
 	}
 }
@@ -50,7 +50,7 @@ func NewLayer(timeout func(message.Message)) *Layer {
 func (l *Layer) Update() {
 	for _, s := range l.states {
 		if s.Retransmit >= l.MaxRetransmit || time.Since(s.Start) >= l.MaxTransmitSpan {
-			l.timeout(s)
+			l.doTimeout(s)
 			continue
 		}
 
@@ -92,10 +92,10 @@ func (l *Layer) send(s *state) error {
 	return l.BaseLayer.Send(s.Message)
 }
 
-func (l *Layer) timeout(s *state) {
+func (l *Layer) doTimeout(s *state) {
 	delete(l.states, s.Message.MessageID)
-	if l.Timeout != nil {
-		l.Timeout(s.Message)
+	if l.timeout != nil {
+		l.timeout(s.Message)
 	}
 }
 

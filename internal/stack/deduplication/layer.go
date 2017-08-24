@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ironzhang/coap/internal/message"
-	"github.com/ironzhang/coap/internal/stack/layer"
+	"github.com/ironzhang/coap/internal/stack/base"
 )
 
 var (
@@ -39,10 +39,10 @@ func (s *state) GetMessage() (message.Message, bool) {
 	return s.Message, s.Saved
 }
 
-var _ layer.Layer = &Layer{}
+var _ base.Layer = &Layer{}
 
 type Layer struct {
-	layer.BaseLayer
+	base.BaseLayer
 	NonLifetime      time.Duration
 	ExchangeLifetime time.Duration
 
@@ -51,9 +51,9 @@ type Layer struct {
 
 func NewLayer() *Layer {
 	return &Layer{
-		BaseLayer:        layer.BaseLayer{Name: "deduplication"},
-		NonLifetime:      145 * time.Second,
-		ExchangeLifetime: 247 * time.Second,
+		BaseLayer:        base.BaseLayer{Name: "deduplication"},
+		NonLifetime:      base.NON_LIFETIME,
+		ExchangeLifetime: base.EXCHANGE_LIFETIME,
 		states:           make(map[uint16]*state),
 	}
 }
