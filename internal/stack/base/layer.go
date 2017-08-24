@@ -2,6 +2,7 @@ package base
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/ironzhang/coap/internal/message"
 )
@@ -41,11 +42,11 @@ func (l *BaseLayer) SetSender(sender Sender) {
 }
 
 func (l *BaseLayer) NewError(cause error) error {
-	return &Error{Layer: l.Name, Cause: cause}
+	return Error{Layer: l.Name, Cause: cause}
 }
 
 func (l *BaseLayer) Errorf(cause error, format string, a ...interface{}) error {
-	return &Error{Layer: l.Name, Cause: cause, Details: fmt.Sprintf(format, a...)}
+	return Error{Layer: l.Name, Cause: cause, Details: fmt.Sprintf(format, a...)}
 }
 
 func (l *BaseLayer) SendRST(messageID uint16) error {
@@ -55,4 +56,26 @@ func (l *BaseLayer) SendRST(messageID uint16) error {
 		MessageID: messageID,
 	}
 	return l.Send(m)
+}
+
+type NopRecver struct {
+	Writer io.Writer
+}
+
+func (p NopRecver) Recv(m message.Message) error {
+	if p.Writer != nil {
+		fmt.Fprintf(p.Writer, "Recv: %v\n", m.String())
+	}
+	return nil
+}
+
+type NopSender struct {
+	Writer io.Writer
+}
+
+func (p NopSender) Send(m message.Message) error {
+	if p.Writer != nil {
+		fmt.Fprintf(p.Writer, "Send: %v\n", m.String())
+	}
+	return nil
 }
