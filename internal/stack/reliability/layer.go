@@ -116,9 +116,8 @@ func (l *Layer) delState(m message.Message) bool {
 	return false
 }
 
-func (l *Layer) getState(m message.Message) (*state, bool) {
-	s, ok := l.states[m.MessageID]
-	return s, ok
+func init() {
+	rand.Seed(time.Now().Unix())
 }
 
 func (l *Layer) randAckTimeout() time.Duration {

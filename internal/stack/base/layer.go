@@ -3,6 +3,7 @@ package base
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ironzhang/coap/internal/message"
 )
@@ -65,7 +66,7 @@ type CountRecver struct {
 
 func (p *CountRecver) Recv(m message.Message) error {
 	if p.Writer != nil {
-		fmt.Fprintf(p.Writer, "Recv: %v\n", m.String())
+		fmt.Fprintf(p.Writer, "[%s] Recv: %v\n", time.Now(), m.String())
 	}
 	p.Count++
 	return nil
@@ -78,7 +79,7 @@ type CountSender struct {
 
 func (p *CountSender) Send(m message.Message) error {
 	if p.Writer != nil {
-		fmt.Fprintf(p.Writer, "Send: %v\n", m.String())
+		fmt.Fprintf(p.Writer, "[%s] Send: %v\n", time.Now(), m.String())
 	}
 	p.Count++
 	return nil
