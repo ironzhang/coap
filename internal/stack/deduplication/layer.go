@@ -26,7 +26,7 @@ func (s *state) Timeout(d time.Duration) bool {
 	return time.Since(s.Time) > d
 }
 
-func (s *state) SaveMessage(m message.Message) bool {
+func (s *state) PutMessage(m message.Message) bool {
 	if s.Saved {
 		return false
 	}
@@ -119,7 +119,7 @@ func (l *Layer) Send(m message.Message) error {
 		// NON消息不可能有ACK
 		return l.BaseLayer.NewError(ErrAckNonMessage)
 	}
-	if !s.SaveMessage(m) {
+	if !s.PutMessage(m) {
 		// 消息已保存过
 		return l.BaseLayer.NewError(ErrMessageSaved)
 	}
