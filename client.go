@@ -63,7 +63,7 @@ func (c *clientConn) init(addr *net.UDPAddr, h Handler) error {
 
 	c.conn = conn
 	c.addr = addr
-	c.sess.init(conn, addr, h)
+	c.sess.init(conn, h, conn.LocalAddr(), addr)
 	go c.reading()
 	return nil
 }

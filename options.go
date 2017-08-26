@@ -111,9 +111,41 @@ func (options *Options) SetStrings(id message.OptionID, ss []string) {
 	}
 }
 
+func (options *Options) GetStrings(id message.OptionID) []string {
+	o, ok := options.GetOption(id)
+	if !ok {
+		return nil
+	}
+	ss := make([]string, 0, len(o.Values))
+	for _, v := range o.Values {
+		if s, ok := v.(string); ok {
+			ss = append(ss, s)
+		}
+	}
+	return ss
+}
+
 func (options *Options) SetPath(path string) {
 	if len(path) > 0 && path[0] == '/' {
 		path = path[1:]
 	}
-	options.SetStrings(message.URIPath, strings.Split(path, "/"))
+	if len(path) > 0 {
+		options.SetStrings(URIPath, strings.Split(path, "/"))
+	}
+}
+
+func (options *Options) GetPath() string {
+	paths := options.GetStrings(URIPath)
+	return strings.Join(paths, "/")
+}
+
+func (options *Options) SetQuery(query string) {
+	if len(query) > 0 {
+		options.SetStrings(URIQuery, strings.Split(query, "&"))
+	}
+}
+
+func (options *Options) GetQuery() string {
+	querys := options.GetStrings(URIQuery)
+	return strings.Join(querys, "&")
 }

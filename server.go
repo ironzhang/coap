@@ -52,7 +52,6 @@ func (s *Server) Serve(l net.PacketConn) error {
 		copy(data, buf)
 		s.addSession(l, addr).recvData(data)
 	}
-	return nil
 }
 
 // SendRequest 发送COAP请求
@@ -76,7 +75,7 @@ func (s *Server) addSession(conn net.PacketConn, addr net.Addr) *session {
 	}
 	sess, ok := s.sessions[addr.String()]
 	if !ok {
-		sess = newSession(&serverConn{conn: conn, addr: addr}, addr, s.Handler)
+		sess = newSession(&serverConn{conn: conn, addr: addr}, s.Handler, conn.LocalAddr(), addr)
 		s.sessions[addr.String()] = sess
 	}
 	return sess

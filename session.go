@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/ironzhang/coap/internal/message"
@@ -109,9 +112,12 @@ func (d *done) Wait(timeout time.Duration) error {
 }
 
 type session struct {
-	writer  io.Writer
-	addr    net.Addr
-	handler Handler
+	writer     io.Writer
+	handler    Handler
+	localAddr  net.Addr
+	remoteAddr net.Addr
+	host       string
+	port       uint16
 
 	donec    chan struct{}
 	servingc chan func()
@@ -124,14 +130,22 @@ type session struct {
 	callbacks map[string]func(*Response)
 }
 
-func newSession(w io.Writer, a net.Addr, h Handler) *session {
-	return new(session).init(w, a, h)
+func newSession(w io.Writer, h Handler, la, ra net.Addr) *session {
+	return new(session).init(w, h, la, ra)
 }
 
-func (s *session) init(w io.Writer, a net.Addr, h Handler) *session {
+func (s *session) init(w io.Writer, h Handler, la, ra net.Addr) *session {
 	s.writer = w
-	s.addr = a
 	s.handler = h
+	s.localAddr = la
+	s.remoteAddr = ra
+	host, port, err := net.SplitHostPort(la.String())
+	if err == nil {
+		s.host = host
+		if n, err := strconv.ParseUint(port, 10, 16); err == nil {
+			s.port = uint16(n)
+		}
+	}
 
 	s.donec = make(chan struct{})
 	s.servingc = make(chan func(), 8)
@@ -215,18 +229,17 @@ func (s *session) handleMSG(m message.Message) {
 
 func (s *session) handleRequest(m message.Message) {
 	if s.handler == nil {
-		resp := message.Message{
-			Type:      NON,
-			Code:      NotFound,
-			MessageID: m.MessageID,
-			Token:     m.Token,
+		log.Printf("handler is nil")
+		if err := s.sendRST(m.MessageID); err != nil {
+			log.Printf("send rst: %v", err)
 		}
-		if m.Type == CON {
-			resp.Type = ACK
-		}
-		if err := s.sendMessage(resp); err != nil {
-			log.Printf("send message: %v", err)
-			return
+		return
+	}
+	url, err := s.parseURLFromOptions(m.Options)
+	if err != nil {
+		log.Printf("parse url from options: %v", err)
+		if err := s.sendRST(m.MessageID); err != nil {
+			log.Printf("send rst: %v", err)
 		}
 		return
 	}
@@ -237,9 +250,10 @@ func (s *session) handleRequest(m message.Message) {
 			Confirmable: m.Type == CON,
 			Method:      m.Code,
 			Options:     m.Options,
+			URL:         url,
 			Token:       m.Token,
 			Payload:     m.Payload,
-			RemoteAddr:  s.addr,
+			RemoteAddr:  s.remoteAddr,
 		}
 		resp := &response{
 			session:     s,
@@ -263,7 +277,7 @@ func (s *session) handleResponse(m message.Message) {
 		Options:    m.Options,
 		Token:      m.Token,
 		Payload:    m.Payload,
-		RemoteAddr: s.addr,
+		RemoteAddr: s.remoteAddr,
 	})
 
 	// 对可靠消息响应回复一个空ACK
@@ -288,7 +302,7 @@ func (s *session) handleACK(m message.Message) {
 			Options:    m.Options,
 			Token:      m.Token,
 			Payload:    m.Payload,
-			RemoteAddr: s.addr,
+			RemoteAddr: s.remoteAddr,
 		})
 	}
 }
@@ -397,7 +411,6 @@ func (s *session) postRequest(r *Request) error {
 
 func (s *session) sendRequest(r *Request, done func(error)) error {
 	// 发送消息
-	r.Options.SetPath(r.URL.Path)
 	m := message.Message{
 		Type:      NON,
 		Code:      r.Method,
@@ -429,6 +442,15 @@ func (s *session) sendRequest(r *Request, done func(error)) error {
 	return nil
 }
 
+func (s *session) sendRST(messageID uint16) error {
+	m := message.Message{
+		Type:      message.RST,
+		Code:      0,
+		MessageID: messageID,
+	}
+	return s.sendMessage(m)
+}
+
 func (s *session) done(id uint16, err error) {
 	if done, ok := s.dones[id]; ok {
 		delete(s.dones, id)
@@ -438,7 +460,7 @@ func (s *session) done(id uint16, err error) {
 
 func (s *session) callback(r *Response) {
 	if cb, ok := s.callbacks[r.Token]; ok {
-		delete(s.callbacks, r.Token)
+		//delete(s.callbacks, r.Token)
 		s.servingc <- func() { cb(r) }
 	}
 }
@@ -452,4 +474,19 @@ func (s *session) genToken() string {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return string(b)
+}
+
+func (s *session) parseURLFromOptions(options Options) (*url.URL, error) {
+	scheme := "coap"
+	host, ok := options.Get(URIHost).(string)
+	if !ok {
+		host = s.host
+	}
+	port, ok := options.Get(URIPort).(uint32)
+	if !ok {
+		port = uint32(s.port)
+	}
+	path := options.GetPath()
+	query := options.GetQuery()
+	return url.Parse(fmt.Sprintf("%s://%s:%d/%s?%s", scheme, host, port, path, query))
 }

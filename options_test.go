@@ -204,6 +204,131 @@ func TestOptionsWrite(t *testing.T) {
 	var b bytes.Buffer
 	options.Write(&b)
 	if got, want := b.String(), s; got != want {
-		t.Error("%q != %q", got, want)
+		t.Errorf("%q != %q", got, want)
+	}
+}
+
+func TestOptionsSetStrings(t *testing.T) {
+	want := Options{
+		{ID: 0, Values: []interface{}{"a", "b", "c"}},
+	}
+	got := Options{}
+	got.SetStrings(0, []string{"a", "b", "c"})
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("\ngot:\n%s\nwant:\n%s\n", OptionsString(got), OptionsString(want))
+	}
+}
+
+func TestOptionsGetStrings(t *testing.T) {
+	options := Options{
+		{ID: 0, Values: []interface{}{"a", "b", "c"}},
+	}
+	if got, want := options.GetStrings(0), []string{"a", "b", "c"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("\ngot:\n%v\nwant:\n%v\n", got, want)
+	}
+}
+
+func TestOptionsSetPath(t *testing.T) {
+	tests := []struct {
+		path string
+		want Options
+	}{
+		{
+			path: "",
+			want: nil,
+		},
+		{
+			path: "/",
+			want: nil,
+		},
+		{
+			path: "a/b/c",
+			want: Options{
+				{URIPath, []interface{}{"a", "b", "c"}},
+			},
+		},
+		{
+			path: "/a/b/c",
+			want: Options{
+				{URIPath, []interface{}{"a", "b", "c"}},
+			},
+		},
+	}
+	for i, tt := range tests {
+		var got Options
+		got.SetPath(tt.path)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("case%d:\ngot:\n%s\nwant:\n%s\n", i, OptionsString(got), OptionsString(tt.want))
+		}
+	}
+}
+
+func TestOptionsPath(t *testing.T) {
+	tests := []struct {
+		path string
+		want string
+	}{
+		{
+			path: "",
+			want: "",
+		},
+		{
+			path: "/",
+			want: "",
+		},
+		{
+			path: "a/b/c",
+			want: "a/b/c",
+		},
+		{
+			path: "/a/b/c",
+			want: "a/b/c",
+		},
+	}
+	for i, tt := range tests {
+		options := Options{}
+		options.SetPath(tt.path)
+		if got, want := options.GetPath(), tt.want; got != want {
+			t.Errorf("case%d: %q != %q", i, got, want)
+		}
+	}
+}
+
+func TestOptionsSetQuery(t *testing.T) {
+	tests := []struct {
+		query string
+		want  Options
+	}{
+		{
+			query: "",
+			want:  nil,
+		},
+		{
+			query: "a=1&b=2&c=3",
+			want: Options{
+				{URIQuery, []interface{}{"a=1", "b=2", "c=3"}},
+			},
+		},
+	}
+	for i, tt := range tests {
+		var got Options
+		got.SetQuery(tt.query)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("case%d:\ngot:\n%s\nwant:\n%s\n", i, OptionsString(got), OptionsString(tt.want))
+		}
+	}
+}
+
+func TestOptionsQuery(t *testing.T) {
+	tests := []string{
+		"",
+		"a=1&b=2&c=3",
+	}
+	for i, query := range tests {
+		options := Options{}
+		options.SetQuery(query)
+		if got, want := options.GetQuery(), query; got != want {
+			t.Errorf("case%d: %q != %q", i, got, want)
+		}
 	}
 }
