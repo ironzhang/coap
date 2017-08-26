@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"sync"
 	"time"
+
+	"github.com/ironzhang/coap/internal/gctable"
 )
 
 func ListenAndServe(network, address string, h Handler) error {
@@ -14,10 +15,8 @@ func ListenAndServe(network, address string, h Handler) error {
 
 // Server 定义了运行一个COAP Server的参数
 type Server struct {
-	Handler Handler // 请求响应接口
-
-	mu       sync.RWMutex
-	sessions map[string]*session
+	Handler  Handler // 请求响应接口
+	sessions gctable.Table
 }
 
 // ListenAndServe 监听在指定地址并提供COAP服务
@@ -68,24 +67,19 @@ func (s *Server) SendRequest(req *Request) error {
 }
 
 func (s *Server) addSession(conn net.PacketConn, addr net.Addr) *session {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.sessions == nil {
-		s.sessions = make(map[string]*session)
+	if obj, ok := s.sessions.Get(addr.String()); ok {
+		return obj.(*session)
 	}
-	sess, ok := s.sessions[addr.String()]
-	if !ok {
-		sess = newSession(&serverConn{conn: conn, addr: addr}, s.Handler, conn.LocalAddr(), addr)
-		s.sessions[addr.String()] = sess
-	}
+	sess := newSession(&serverConn{conn: conn, addr: addr}, s.Handler, conn.LocalAddr(), addr)
+	s.sessions.Add(sess)
 	return sess
 }
 
 func (s *Server) getSession(addr net.Addr) (*session, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	sess, ok := s.sessions[addr.String()]
-	return sess, ok
+	if obj, ok := s.sessions.Get(addr.String()); ok {
+		return obj.(*session), true
+	}
+	return nil, false
 }
 
 type serverConn struct {

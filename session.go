@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/ironzhang/coap/internal/message"
@@ -119,6 +120,9 @@ type session struct {
 	host       string
 	port       uint16
 
+	lastRecvMutex sync.RWMutex
+	lastRecvTime  time.Time
+
 	donec    chan struct{}
 	servingc chan func()
 	runningc chan func()
@@ -187,6 +191,18 @@ func (s *session) running() {
 			s.stack.Update()
 		}
 	}
+}
+
+func (s *session) Key() string {
+	return s.remoteAddr.String()
+}
+
+func (s *session) CanGC() bool {
+	return s.lastRecvTimeExpired()
+}
+
+func (s *session) ExecuteGC() {
+	s.Close()
 }
 
 func (s *session) Close() error {
@@ -325,6 +341,7 @@ func (s *session) ackTimeout(m message.Message) {
 }
 
 func (s *session) recvData(data []byte) {
+	s.lastRecvTimeUpdate()
 	s.runningc <- func() {
 		var m message.Message
 		if err := m.Unmarshal(data); err != nil {
@@ -474,6 +491,21 @@ func (s *session) genToken() string {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return string(b)
+}
+
+func (s *session) lastRecvTimeUpdate() {
+	//s.lastRecvMutex.Lock()
+	s.lastRecvTime = time.Now()
+	//s.lastRecvMutex.Unlock()
+}
+
+func (s *session) lastRecvTimeExpired() bool {
+	//s.lastRecvMutex.Lock()
+	//defer s.lastRecvMutex.Unlock()
+	if time.Since(s.lastRecvTime) > time.Hour {
+		return true
+	}
+	return false
 }
 
 func (s *session) parseURLFromOptions(options Options) (*url.URL, error) {
