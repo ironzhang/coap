@@ -20,7 +20,6 @@ type Request struct {
 	Payload     []byte
 	RemoteAddr  net.Addr
 	Timeout     time.Duration
-	Callback    func(*Response)
 }
 
 func NewRequest(confirmable bool, method message.Code, urlstr string, payload []byte) (*Request, error) {

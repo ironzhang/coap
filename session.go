@@ -196,7 +196,7 @@ func (s *session) serving() {
 }
 
 func (s *session) running() {
-	t := time.NewTicker(time.Second)
+	t := time.NewTicker(base.ACK_TIMEOUT)
 	defer t.Stop()
 	for {
 		select {
