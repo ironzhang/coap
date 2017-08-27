@@ -20,6 +20,9 @@ type Request struct {
 	Payload     []byte
 	RemoteAddr  net.Addr
 	Timeout     time.Duration
+
+	// 若设置该字段，发送请求时使用Request中的Token字段，否则消息的token自动生成
+	useToken bool
 }
 
 func NewRequest(confirmable bool, method message.Code, urlstr string, payload []byte) (*Request, error) {
@@ -86,6 +89,7 @@ func NewObserveRequest(urlstr string, token string, cancel bool) (*Request, erro
 	if err != nil {
 		return nil, err
 	}
+	r.useToken = true
 	r.Token = token
 	if cancel {
 		r.Options.Set(Observe, 1)

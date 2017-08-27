@@ -500,18 +500,32 @@ func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) err
 		}
 	}
 
-	// 发送消息
+	// 构造消息
 	m := message.Message{
 		Type:      NON,
 		Code:      r.Method,
 		MessageID: s.genMessageID(),
-		Token:     s.genToken(),
 		Options:   r.Options,
 		Payload:   r.Payload,
 	}
 	if r.Confirmable {
 		m.Type = CON
 	}
+	if r.useToken {
+		m.Token = r.Token
+	} else {
+		m.Token = s.genToken()
+	}
+
+	// 检查MessageID和Token
+	if _, ok := s.ackWaiters[m.MessageID]; ok {
+		return fmt.Errorf("MessageID(%d) duplicate", m.MessageID)
+	}
+	if _, ok := s.respWaiters[m.Token]; ok {
+		return fmt.Errorf("Token(%s) duplicate", m.Token)
+	}
+
+	// 发送消息
 	if err := s.sendMessage(m); err != nil {
 		done(err)
 		return err
