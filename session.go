@@ -32,6 +32,11 @@ type Handler interface {
 	ServeCOAP(ResponseWriter, *Request)
 }
 
+// Observer 观察者
+type Observer interface {
+	ServeObserve(*Response)
+}
+
 // ResponseWriter 用于构造COAP响应
 type ResponseWriter interface {
 	// Ack 回复空ACK，服务器无法立即响应，可先调用该方法返回一个空的ACK
@@ -135,6 +140,7 @@ func (w *responseWaiter) Wait() (*Response, error) {
 type session struct {
 	writer     io.Writer
 	handler    Handler
+	observer   Observer
 	localAddr  net.Addr
 	remoteAddr net.Addr
 	host       string
@@ -153,13 +159,14 @@ type session struct {
 	waiters map[string]*responseWaiter
 }
 
-func newSession(w io.Writer, h Handler, la, ra net.Addr) *session {
-	return new(session).init(w, h, la, ra)
+func newSession(w io.Writer, h Handler, o Observer, la, ra net.Addr) *session {
+	return new(session).init(w, h, o, la, ra)
 }
 
-func (s *session) init(w io.Writer, h Handler, la, ra net.Addr) *session {
+func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr) *session {
 	s.writer = w
 	s.handler = h
+	s.observer = o
 	s.localAddr = la
 	s.remoteAddr = ra
 	host, port, err := net.SplitHostPort(la.String())
@@ -313,18 +320,51 @@ func (s *session) handleRequest(m message.Message) {
 }
 
 func (s *session) handleResponse(m message.Message) {
+	options := Options(m.Options)
+	if _, ok := options.GetOption(Observe); ok {
+		s.handleObserveResponse(m)
+	} else {
+		s.handleNormalResponse(m)
+	}
+}
+
+func (s *session) handleObserveResponse(m message.Message) {
+	if s.observer == nil {
+		log.Printf("observer is nil")
+		if err := s.sendRST(m.MessageID); err != nil {
+			log.Printf("send rst: %v", err)
+		}
+		return
+	}
+
+	// 由serving协程调用上层观察者程序处理订阅响应
+	s.servingc <- func() {
+		resp := &Response{
+			Ack:     m.Type == ACK,
+			Status:  m.Code,
+			Options: m.Options,
+			Token:   m.Token,
+			Payload: m.Payload,
+		}
+		s.observer.ServeObserve(resp)
+	}
+
+	// 回复ACK
+	if m.Type == CON {
+		if err := s.sendACK(m.MessageID); err != nil {
+			log.Printf("send ack: %v", err)
+		}
+	}
+}
+
+func (s *session) handleNormalResponse(m message.Message) {
 	// 结束响应等待
 	s.finishResponseWait(m, nil)
 
-	// 对可靠消息响应回复一个空ACK
+	// 回复ACK
 	if m.Type == CON {
-		ack := message.Message{
-			Type:      ACK,
-			Code:      Content,
-			MessageID: m.MessageID,
-		}
-		if err := s.sendMessage(ack); err != nil {
-			log.Printf("send message: %v", err)
+		if err := s.sendACK(m.MessageID); err != nil {
+			log.Printf("send ack: %v", err)
 		}
 	}
 }
@@ -452,7 +492,15 @@ func (s *session) sendResponse(r *response) error {
 	return nil
 }
 
-func (s *session) postRequest(r *Request) (*Response, error) {
+func (s *session) postRequest(r *Request) {
+	s.runningc <- func() {
+		if err := s.sendRequest(r, nil); err != nil {
+			log.Printf("send request: %v", err)
+		}
+	}
+}
+
+func (s *session) postRequestAndWaitResponse(r *Request) (*Response, error) {
 	w := newResponseWaiter()
 	if r.Timeout > 0 {
 		w.timeout = r.Timeout
@@ -482,18 +530,29 @@ func (s *session) sendRequest(r *Request, w *responseWaiter) error {
 		m.Type = CON
 	}
 	if err := s.sendMessage(m); err != nil {
-		w.Done(message.Message{}, err)
+		if w != nil {
+			w.Done(message.Message{}, err)
+		}
 		return err
 	}
-	w.messageID = m.MessageID
-	s.waiters[m.Token] = w
+	if w != nil {
+		w.messageID = m.MessageID
+		s.waiters[m.Token] = w
+	}
 	return nil
+}
+
+func (s *session) sendACK(messageID uint16) error {
+	m := message.Message{
+		Type:      message.ACK,
+		MessageID: messageID,
+	}
+	return s.sendMessage(m)
 }
 
 func (s *session) sendRST(messageID uint16) error {
 	m := message.Message{
 		Type:      message.RST,
-		Code:      0,
 		MessageID: messageID,
 	}
 	return s.sendMessage(m)

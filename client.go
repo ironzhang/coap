@@ -29,7 +29,7 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return conn.sess.postRequest(req)
+	return conn.sess.postRequestAndWaitResponse(req)
 }
 
 func (c *Client) addConn(addr *net.UDPAddr) (*clientConn, error) {
@@ -63,7 +63,7 @@ func (c *clientConn) init(addr *net.UDPAddr, h Handler) error {
 
 	c.conn = conn
 	c.addr = addr
-	c.sess.init(conn, h, conn.LocalAddr(), addr)
+	c.sess.init(conn, h, nil, conn.LocalAddr(), addr)
 	go c.reading()
 	return nil
 }

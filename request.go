@@ -80,3 +80,17 @@ func splitHostPort(hostport string) (string, uint16, error) {
 	}
 	return host, uint16(n), nil
 }
+
+func NewObserveRequest(urlstr string, token string, cancel bool) (*Request, error) {
+	r, err := NewRequest(true, GET, urlstr, nil)
+	if err != nil {
+		return nil, err
+	}
+	r.Token = token
+	if cancel {
+		r.Options.Set(Observe, 1)
+	} else {
+		r.Options.Set(Observe, 0)
+	}
+	return r, nil
+}

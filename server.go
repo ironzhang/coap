@@ -15,7 +15,8 @@ func ListenAndServe(network, address string, h Handler) error {
 
 // Server 定义了运行一个COAP Server的参数
 type Server struct {
-	Handler  Handler // 请求响应接口
+	Handler  Handler  // 请求响应接口
+	Observer Observer // 观察者接口
 	sessions gctable.Table
 }
 
@@ -63,14 +64,27 @@ func (s *Server) SendRequest(req *Request) (*Response, error) {
 	if !ok {
 		return nil, fmt.Errorf("session(%s) not found", addr)
 	}
-	return sess.postRequest(req)
+	return sess.postRequestAndWaitResponse(req)
+}
+
+func (s *Server) SendObserveRequest(req *Request) error {
+	addr, err := net.ResolveUDPAddr("udp", req.URL.Host)
+	if err != nil {
+		return err
+	}
+	sess, ok := s.getSession(addr)
+	if !ok {
+		return fmt.Errorf("session(%s) not found", addr)
+	}
+	sess.postRequest(req)
+	return nil
 }
 
 func (s *Server) addSession(conn net.PacketConn, addr net.Addr) *session {
 	if obj, ok := s.sessions.Get(addr.String()); ok {
 		return obj.(*session)
 	}
-	sess := newSession(&serverConn{conn: conn, addr: addr}, s.Handler, conn.LocalAddr(), addr)
+	sess := newSession(&serverConn{conn: conn, addr: addr}, s.Handler, s.Observer, conn.LocalAddr(), addr)
 	s.sessions.Add(sess)
 	return sess
 }
