@@ -23,6 +23,7 @@ var Verbose = true
 const defaultResponseTimeout = 20 * time.Second
 
 var (
+	ErrReset   = errors.New("wait response reset by peer")
 	ErrTimeout = errors.New("wait response timeout")
 )
 
@@ -91,11 +92,12 @@ func (r *response) Write(p []byte) (int, error) {
 }
 
 type responseWaiter struct {
-	done    chan struct{}
-	start   time.Time
-	timeout time.Duration
-	err     error
-	msg     message.Message
+	done      chan struct{}
+	start     time.Time
+	timeout   time.Duration
+	messageID uint16
+	err       error
+	msg       message.Message
 }
 
 func newResponseWaiter() *responseWaiter {
@@ -243,6 +245,7 @@ func (s *session) Recv(m message.Message) error {
 	case ACK:
 		s.handleACK(m)
 	case RST:
+		s.handleRST(m)
 	default:
 	}
 	return nil
@@ -329,6 +332,16 @@ func (s *session) handleResponse(m message.Message) {
 func (s *session) handleACK(m message.Message) {
 	if len(m.Token) > 0 {
 		s.finishResponseWait(m, nil)
+	}
+}
+
+func (s *session) handleRST(m message.Message) {
+	for k, w := range s.waiters {
+		if w.messageID == m.MessageID {
+			delete(s.waiters, k)
+			w.Done(message.Message{}, ErrReset)
+			break
+		}
 	}
 }
 
@@ -472,6 +485,7 @@ func (s *session) sendRequest(r *Request, w *responseWaiter) error {
 		w.Done(message.Message{}, err)
 		return err
 	}
+	w.messageID = m.MessageID
 	s.waiters[m.Token] = w
 	return nil
 }
