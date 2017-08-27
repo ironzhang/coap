@@ -13,21 +13,21 @@ type Client struct {
 	conns map[string]*clientConn
 }
 
-func (c *Client) SendRequest(req *Request) error {
+func (c *Client) SendRequest(req *Request) (*Response, error) {
 	if req.URL == nil {
-		return errors.New("coap: nil Request.URL")
+		return nil, errors.New("coap: nil Request.URL")
 	}
 	if len(req.URL.Host) <= 0 {
-		return errors.New("coap: invalid Request.URL.Host")
+		return nil, errors.New("coap: invalid Request.URL.Host")
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", req.URL.Host)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	conn, err := c.addConn(addr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	return conn.sess.postRequest(req)
 }

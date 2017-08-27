@@ -54,14 +54,14 @@ func (s *Server) Serve(l net.PacketConn) error {
 }
 
 // SendRequest 发送COAP请求
-func (s *Server) SendRequest(req *Request) error {
+func (s *Server) SendRequest(req *Request) (*Response, error) {
 	addr, err := net.ResolveUDPAddr("udp", req.URL.Host)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sess, ok := s.getSession(addr)
 	if !ok {
-		return fmt.Errorf("session(%s) not found", addr)
+		return nil, fmt.Errorf("session(%s) not found", addr)
 	}
 	return sess.postRequest(req)
 }

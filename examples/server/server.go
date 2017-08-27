@@ -18,7 +18,6 @@ func (s *Server) ListenAndServe(network, address string) error {
 
 func (s *Server) ServeCOAP(w coap.ResponseWriter, r *coap.Request) {
 	w.Ack(coap.Changed)
-
 	log.Printf("%s\n", r.Payload)
 	fmt.Fprintf(w, "server echo %s", r.Payload)
 
@@ -27,16 +26,12 @@ func (s *Server) ServeCOAP(w coap.ResponseWriter, r *coap.Request) {
 		log.Printf("new request: %v", err)
 		return
 	}
-	req.Callback = func(resp *coap.Response) {
-		if resp.Status == coap.Content {
-			log.Printf("%s\n", resp.Payload)
-		}
-	}
-
-	if err = s.svr.SendRequest(req); err != nil {
+	resp, err := s.svr.SendRequest(req)
+	if err != nil {
 		log.Printf("send request: %v", err)
 		return
 	}
+	log.Printf("%s\n", resp.Payload)
 }
 
 func main() {

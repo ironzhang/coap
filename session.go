@@ -15,13 +15,15 @@ import (
 
 	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack"
+	"github.com/ironzhang/coap/internal/stack/base"
 )
 
 var Verbose = true
 
+const defaultResponseTimeout = 20 * time.Second
+
 var (
-	ErrRST     = errors.New("reset by peer")
-	ErrTimeout = errors.New("wait ack timeout")
+	ErrTimeout = errors.New("wait response timeout")
 )
 
 // Handler 响应COAP请求的接口
@@ -53,21 +55,23 @@ type response struct {
 	confirmable bool
 	messageID   uint16
 	token       string
-	acked       bool
 	code        message.Code
 	options     Options
 	buffer      bytes.Buffer
+	acked       bool
 	needAck     bool
 }
 
 func (r *response) Ack(code message.Code) {
-	r.acked = true
-	m := message.Message{
-		Type:      ACK,
-		Code:      code,
-		MessageID: r.messageID,
+	if r.needAck {
+		r.acked = true
+		m := message.Message{
+			Type:      ACK,
+			Code:      code,
+			MessageID: r.messageID,
+		}
+		r.session.postMessage(m)
 	}
-	r.session.postMessage(m)
 }
 
 func (r *response) SetConfirmable() {
@@ -86,30 +90,44 @@ func (r *response) Write(p []byte) (int, error) {
 	return r.buffer.Write(p)
 }
 
-type done struct {
-	err error
-	ch  chan struct{}
+type responseWaiter struct {
+	done    chan struct{}
+	start   time.Time
+	timeout time.Duration
+	err     error
+	msg     message.Message
 }
 
-func (d *done) Done(err error) {
-	d.err = err
-	close(d.ch)
+func newResponseWaiter() *responseWaiter {
+	return &responseWaiter{
+		done:    make(chan struct{}),
+		start:   time.Now(),
+		timeout: defaultResponseTimeout,
+	}
 }
 
-func (d *done) Wait(timeout time.Duration) error {
-	var ch <-chan time.Time
-	if timeout > 0 {
-		t := time.NewTimer(timeout)
-		defer t.Stop()
-		ch = t.C
-	}
+func (w *responseWaiter) Timeout() bool {
+	return time.Since(w.start) > w.timeout
+}
 
-	select {
-	case <-d.ch:
-		return d.err
-	case <-ch:
-		return ErrTimeout
+func (w *responseWaiter) Done(msg message.Message, err error) {
+	w.msg = msg
+	w.err = err
+	close(w.done)
+}
+
+func (w *responseWaiter) Wait() (*Response, error) {
+	<-w.done
+	if w.err != nil {
+		return nil, w.err
 	}
+	return &Response{
+		Ack:     w.msg.Type == ACK,
+		Status:  w.msg.Code,
+		Options: w.msg.Options,
+		Token:   w.msg.Token,
+		Payload: w.msg.Payload,
+	}, nil
 }
 
 type session struct {
@@ -128,10 +146,9 @@ type session struct {
 	runningc chan func()
 
 	// 以下字段只能在running协程中访问
-	seq       uint16
-	stack     stack.Stack
-	dones     map[uint16]func(error)
-	callbacks map[string]func(*Response)
+	seq     uint16
+	stack   stack.Stack
+	waiters map[string]*responseWaiter
 }
 
 func newSession(w io.Writer, h Handler, la, ra net.Addr) *session {
@@ -156,8 +173,7 @@ func (s *session) init(w io.Writer, h Handler, la, ra net.Addr) *session {
 	s.runningc = make(chan func(), 8)
 
 	s.stack.Init(s, s, s.ackTimeout)
-	s.dones = make(map[uint16]func(error))
-	s.callbacks = make(map[string]func(*Response))
+	s.waiters = make(map[string]*responseWaiter)
 
 	go s.serving()
 	go s.running()
@@ -188,7 +204,17 @@ func (s *session) running() {
 		case f := <-s.runningc:
 			f()
 		case <-t.C:
-			s.stack.Update()
+			s.update()
+		}
+	}
+}
+
+func (s *session) update() {
+	s.stack.Update()
+	for k, w := range s.waiters {
+		if w.Timeout() {
+			delete(s.waiters, k)
+			w.Done(message.Message{}, ErrTimeout)
 		}
 	}
 }
@@ -217,7 +243,6 @@ func (s *session) Recv(m message.Message) error {
 	case ACK:
 		s.handleACK(m)
 	case RST:
-		s.handleRST(m)
 	default:
 	}
 	return nil
@@ -276,7 +301,6 @@ func (s *session) handleRequest(m message.Message) {
 			confirmable: req.Confirmable,
 			messageID:   m.MessageID,
 			token:       m.Token,
-			acked:       false,
 			code:        Content,
 			needAck:     req.Confirmable,
 		}
@@ -286,15 +310,8 @@ func (s *session) handleRequest(m message.Message) {
 }
 
 func (s *session) handleResponse(m message.Message) {
-	// 回调上层响应的Response处理函数
-	s.callback(&Response{
-		Ack:        false,
-		Status:     m.Code,
-		Options:    m.Options,
-		Token:      m.Token,
-		Payload:    m.Payload,
-		RemoteAddr: s.remoteAddr,
-	})
+	// 结束响应等待
+	s.finishResponseWait(m, nil)
 
 	// 对可靠消息响应回复一个空ACK
 	if m.Type == CON {
@@ -310,21 +327,9 @@ func (s *session) handleResponse(m message.Message) {
 }
 
 func (s *session) handleACK(m message.Message) {
-	s.done(m.MessageID, nil)
-	if m.Code != Content || len(m.Payload) > 0 {
-		s.callback(&Response{
-			Ack:        true,
-			Status:     m.Code,
-			Options:    m.Options,
-			Token:      m.Token,
-			Payload:    m.Payload,
-			RemoteAddr: s.remoteAddr,
-		})
+	if len(m.Token) > 0 {
+		s.finishResponseWait(m, nil)
 	}
-}
-
-func (s *session) handleRST(m message.Message) {
-	s.done(m.MessageID, ErrRST)
 }
 
 func (s *session) Send(m message.Message) error {
@@ -337,7 +342,9 @@ func (s *session) Send(m message.Message) error {
 }
 
 func (s *session) ackTimeout(m message.Message) {
-	s.done(m.MessageID, ErrTimeout)
+	if len(m.Token) > 0 {
+		s.finishResponseWait(m, ErrTimeout)
+	}
 }
 
 func (s *session) recvData(data []byte) {
@@ -385,21 +392,7 @@ func (s *session) postResponse(r *response) {
 }
 
 func (s *session) sendResponse(r *response) error {
-	if !r.acked && r.needAck {
-		// 附带响应
-		m := message.Message{
-			Type:      ACK,
-			Code:      r.code,
-			MessageID: r.messageID,
-			Token:     r.token,
-			Options:   r.options,
-			Payload:   r.buffer.Bytes(),
-		}
-		return s.sendMessage(m)
-	}
-
-	if r.code != Content || r.buffer.Len() > 0 {
-		// 单独响应
+	if !r.needAck {
 		m := message.Message{
 			Type:      NON,
 			Code:      r.code,
@@ -413,20 +406,56 @@ func (s *session) sendResponse(r *response) error {
 		}
 		return s.sendMessage(m)
 	}
+
+	if r.acked {
+		// 单独响应
+		if r.code != Content || len(r.options) > 0 || r.buffer.Len() > 0 {
+			m := message.Message{
+				Type:      NON,
+				Code:      r.code,
+				MessageID: s.genMessageID(),
+				Token:     r.token,
+				Options:   r.options,
+				Payload:   r.buffer.Bytes(),
+			}
+			if r.confirmable {
+				m.Type = CON
+			}
+			return s.sendMessage(m)
+		}
+	} else {
+		// 附带响应
+		m := message.Message{
+			Type:      ACK,
+			Code:      r.code,
+			MessageID: r.messageID,
+			Token:     r.token,
+			Options:   r.options,
+			Payload:   r.buffer.Bytes(),
+		}
+		return s.sendMessage(m)
+	}
+
 	return nil
 }
 
-func (s *session) postRequest(r *Request) error {
-	d := &done{ch: make(chan struct{})}
+func (s *session) postRequest(r *Request) (*Response, error) {
+	w := newResponseWaiter()
+	if r.Timeout > 0 {
+		w.timeout = r.Timeout
+	}
+	if r.Confirmable && w.timeout < base.EXCHANGE_LIFETIME {
+		w.timeout = base.EXCHANGE_LIFETIME
+	}
 	s.runningc <- func() {
-		if err := s.sendRequest(r, d.Done); err != nil {
+		if err := s.sendRequest(r, w); err != nil {
 			log.Printf("send request: %v", err)
 		}
 	}
-	return d.Wait(r.Timeout)
+	return w.Wait()
 }
 
-func (s *session) sendRequest(r *Request, done func(error)) error {
+func (s *session) sendRequest(r *Request, w *responseWaiter) error {
 	// 发送消息
 	m := message.Message{
 		Type:      NON,
@@ -440,22 +469,10 @@ func (s *session) sendRequest(r *Request, done func(error)) error {
 		m.Type = CON
 	}
 	if err := s.sendMessage(m); err != nil {
-		done(err)
+		w.Done(message.Message{}, err)
 		return err
 	}
-
-	// 设置Response回调
-	if r.Callback != nil {
-		s.callbacks[m.Token] = r.Callback
-	}
-
-	if r.Confirmable {
-		// 可靠消息待ACK返回后再通知上层发送结果
-		s.dones[m.MessageID] = done
-	} else {
-		// 非可靠消息直接通知上层请求发送成功
-		done(nil)
-	}
+	s.waiters[m.Token] = w
 	return nil
 }
 
@@ -468,17 +485,10 @@ func (s *session) sendRST(messageID uint16) error {
 	return s.sendMessage(m)
 }
 
-func (s *session) done(id uint16, err error) {
-	if done, ok := s.dones[id]; ok {
-		delete(s.dones, id)
-		done(err)
-	}
-}
-
-func (s *session) callback(r *Response) {
-	if cb, ok := s.callbacks[r.Token]; ok {
-		//delete(s.callbacks, r.Token)
-		s.servingc <- func() { cb(r) }
+func (s *session) finishResponseWait(m message.Message, err error) {
+	if w, ok := s.waiters[m.Token]; ok {
+		delete(s.waiters, m.Token)
+		w.Done(m, err)
 	}
 }
 
