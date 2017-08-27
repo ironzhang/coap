@@ -76,8 +76,7 @@ func (s *Server) SendObserveRequest(req *Request) error {
 	if !ok {
 		return fmt.Errorf("session(%s) not found", addr)
 	}
-	sess.postRequest(req)
-	return nil
+	return sess.postRequestAndWaitAck(req)
 }
 
 func (s *Server) addSession(conn net.PacketConn, addr net.Addr) *session {

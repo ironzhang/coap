@@ -96,47 +96,6 @@ func (r *response) Write(p []byte) (int, error) {
 	return r.buffer.Write(p)
 }
 
-type responseWaiter struct {
-	done      chan struct{}
-	start     time.Time
-	timeout   time.Duration
-	messageID uint16
-	err       error
-	msg       message.Message
-}
-
-func newResponseWaiter() *responseWaiter {
-	return &responseWaiter{
-		done:    make(chan struct{}),
-		start:   time.Now(),
-		timeout: defaultResponseTimeout,
-	}
-}
-
-func (w *responseWaiter) Timeout() bool {
-	return time.Since(w.start) > w.timeout
-}
-
-func (w *responseWaiter) Done(msg message.Message, err error) {
-	w.msg = msg
-	w.err = err
-	close(w.done)
-}
-
-func (w *responseWaiter) Wait() (*Response, error) {
-	<-w.done
-	if w.err != nil {
-		return nil, w.err
-	}
-	return &Response{
-		Ack:     w.msg.Type == ACK,
-		Status:  w.msg.Code,
-		Options: w.msg.Options,
-		Token:   w.msg.Token,
-		Payload: w.msg.Payload,
-	}, nil
-}
-
 type session struct {
 	writer     io.Writer
 	handler    Handler
@@ -154,9 +113,10 @@ type session struct {
 	runningc chan func()
 
 	// 以下字段只能在running协程中访问
-	seq     uint16
-	stack   stack.Stack
-	waiters map[string]*responseWaiter
+	seq         uint16
+	stack       stack.Stack
+	ackWaiters  map[uint16]*ackWaiter
+	respWaiters map[string]*responseWaiter
 }
 
 func newSession(w io.Writer, h Handler, o Observer, la, ra net.Addr) *session {
@@ -182,7 +142,8 @@ func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr) *ses
 	s.runningc = make(chan func(), 8)
 
 	s.stack.Init(s, s, s.ackTimeout)
-	s.waiters = make(map[string]*responseWaiter)
+	s.ackWaiters = make(map[uint16]*ackWaiter)
+	s.respWaiters = make(map[string]*responseWaiter)
 
 	go s.serving()
 	go s.running()
@@ -220,9 +181,9 @@ func (s *session) running() {
 
 func (s *session) update() {
 	s.stack.Update()
-	for k, w := range s.waiters {
+	for k, w := range s.respWaiters {
 		if w.Timeout() {
-			delete(s.waiters, k)
+			delete(s.respWaiters, k)
 			w.Done(message.Message{}, ErrTimeout)
 		}
 	}
@@ -370,15 +331,17 @@ func (s *session) handleNormalResponse(m message.Message) {
 }
 
 func (s *session) handleACK(m message.Message) {
+	s.finishAckWait(m, nil)
 	if len(m.Token) > 0 {
 		s.finishResponseWait(m, nil)
 	}
 }
 
 func (s *session) handleRST(m message.Message) {
-	for k, w := range s.waiters {
+	s.finishAckWait(m, ErrReset)
+	for k, w := range s.respWaiters {
 		if w.messageID == m.MessageID {
-			delete(s.waiters, k)
+			delete(s.respWaiters, k)
 			w.Done(message.Message{}, ErrReset)
 			break
 		}
@@ -395,6 +358,7 @@ func (s *session) Send(m message.Message) error {
 }
 
 func (s *session) ackTimeout(m message.Message) {
+	s.finishAckWait(m, ErrTimeout)
 	if len(m.Token) > 0 {
 		s.finishResponseWait(m, ErrTimeout)
 	}
@@ -494,10 +458,20 @@ func (s *session) sendResponse(r *response) error {
 
 func (s *session) postRequest(r *Request) {
 	s.runningc <- func() {
-		if err := s.sendRequest(r, nil); err != nil {
+		if err := s.sendRequest(r, nil, nil); err != nil {
 			log.Printf("send request: %v", err)
 		}
 	}
+}
+
+func (s *session) postRequestAndWaitAck(r *Request) error {
+	w := newAckWaiter()
+	s.runningc <- func() {
+		if err := s.sendRequest(r, w, nil); err != nil {
+			log.Printf("send request: %v", err)
+		}
+	}
+	return w.Wait()
 }
 
 func (s *session) postRequestAndWaitResponse(r *Request) (*Response, error) {
@@ -509,14 +483,23 @@ func (s *session) postRequestAndWaitResponse(r *Request) (*Response, error) {
 		w.timeout = base.EXCHANGE_LIFETIME
 	}
 	s.runningc <- func() {
-		if err := s.sendRequest(r, w); err != nil {
+		if err := s.sendRequest(r, nil, w); err != nil {
 			log.Printf("send request: %v", err)
 		}
 	}
 	return w.Wait()
 }
 
-func (s *session) sendRequest(r *Request, w *responseWaiter) error {
+func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) error {
+	done := func(err error) {
+		if aw != nil {
+			aw.Done(err)
+		}
+		if rw != nil {
+			rw.Done(message.Message{}, err)
+		}
+	}
+
 	// 发送消息
 	m := message.Message{
 		Type:      NON,
@@ -530,15 +513,25 @@ func (s *session) sendRequest(r *Request, w *responseWaiter) error {
 		m.Type = CON
 	}
 	if err := s.sendMessage(m); err != nil {
-		if w != nil {
-			w.Done(message.Message{}, err)
-		}
+		done(err)
 		return err
 	}
-	if w != nil {
-		w.messageID = m.MessageID
-		s.waiters[m.Token] = w
+
+	// 设置应答等待
+	if aw != nil {
+		if r.Confirmable {
+			s.ackWaiters[m.MessageID] = aw
+		} else {
+			aw.Done(nil)
+		}
 	}
+
+	// 设置响应等待
+	if rw != nil {
+		rw.messageID = m.MessageID
+		s.respWaiters[m.Token] = rw
+	}
+
 	return nil
 }
 
@@ -558,9 +551,16 @@ func (s *session) sendRST(messageID uint16) error {
 	return s.sendMessage(m)
 }
 
+func (s *session) finishAckWait(m message.Message, err error) {
+	if w, ok := s.ackWaiters[m.MessageID]; ok {
+		delete(s.ackWaiters, m.MessageID)
+		w.Done(err)
+	}
+}
+
 func (s *session) finishResponseWait(m message.Message, err error) {
-	if w, ok := s.waiters[m.Token]; ok {
-		delete(s.waiters, m.Token)
+	if w, ok := s.respWaiters[m.Token]; ok {
+		delete(s.respWaiters, m.Token)
 		w.Done(m, err)
 	}
 }
