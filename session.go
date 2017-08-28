@@ -142,8 +142,8 @@ func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr) *ses
 	s.ackWaiters = make(map[uint16]*ackWaiter)
 	s.respWaiters = make(map[string]*responseWaiter)
 
-	go s.serving()
-	go s.running()
+	go s.serving() // 调用上层回调接口协程
+	go s.running() // 主逻辑协程
 
 	return s
 }
@@ -244,6 +244,8 @@ func (s *session) handleRequest(m base.Message) {
 		}
 		return
 	}
+
+	// 将选项编码成URL
 	url, err := s.parseURLFromOptions(m.Options)
 	if err != nil {
 		log.Printf("parse url from options: %v", err)
@@ -295,7 +297,7 @@ func (s *session) handleObserveResponse(m base.Message) {
 		return
 	}
 
-	// 由serving协程调用上层观察者程序处理订阅响应
+	// 由serving协程调用上层观察者接口处理订阅响应
 	s.servingc <- func() {
 		resp := &Response{
 			Ack:     m.Type == base.ACK,
@@ -407,6 +409,7 @@ func (s *session) postResponse(r *response) {
 
 func (s *session) sendResponse(r *response) error {
 	if !r.needAck {
+		// 非可靠请求的响应
 		m := base.Message{
 			Type:      base.NON,
 			Code:      uint8(r.code),
