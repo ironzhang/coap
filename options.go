@@ -17,41 +17,35 @@ func (p *Options) clone() Options {
 	return c
 }
 
-func (p *Options) Add(id OptionID, v interface{}) {
-	*p = append(*p, base.Option{ID: uint16(id), Value: v})
+func (p *Options) Add(id uint16, v interface{}) {
+	*p = append(*p, base.Option{ID: id, Value: v})
 }
 
-func (p *Options) Set(id OptionID, v interface{}) {
-	for i := range *p {
-		o := &(*p)[i]
-		if o.ID == uint16(id) {
-			o.Value = v
-			return
-		}
-	}
-	*p = append(*p, base.Option{ID: uint16(id), Value: v})
-}
-
-func (p *Options) Get(id OptionID) interface{} {
+func (p *Options) Get(id uint16) interface{} {
 	for _, o := range *p {
-		if o.ID == uint16(id) {
+		if o.ID == id {
 			return o.Value
 		}
 	}
 	return nil
 }
 
-func (p *Options) Del(id OptionID) {
+func (p *Options) Del(id uint16) {
 	var res Options
 	for _, o := range *p {
-		if o.ID != uint16(id) {
+		if o.ID != id {
 			res = append(res, o)
 		}
 	}
 	*p = res
 }
 
-func (p *Options) HasOption(id OptionID) bool {
+func (p *Options) Set(id uint16, v interface{}) {
+	p.Del(id)
+	p.Add(id, v)
+}
+
+func (p *Options) HasOption(id uint16) bool {
 	for _, o := range *p {
 		if o.ID == uint16(id) {
 			return true
@@ -60,10 +54,10 @@ func (p *Options) HasOption(id OptionID) bool {
 	return false
 }
 
-func (p *Options) GetValues(id OptionID) []interface{} {
+func (p *Options) GetValues(id uint16) []interface{} {
 	var values []interface{}
 	for _, o := range *p {
-		if o.ID == uint16(id) {
+		if o.ID == id {
 			values = append(values, o.Value)
 		}
 	}
@@ -92,14 +86,14 @@ func (options *Options) Write(w io.Writer) error {
 	return nil
 }
 
-func (options *Options) SetStrings(id OptionID, ss []string) {
+func (options *Options) SetStrings(id uint16, ss []string) {
 	options.Del(id)
 	for _, s := range ss {
 		options.Add(id, s)
 	}
 }
 
-func (options *Options) GetStrings(id OptionID) []string {
+func (options *Options) GetStrings(id uint16) []string {
 	values := options.GetValues(id)
 	ss := make([]string, 0, len(values))
 	for _, v := range values {

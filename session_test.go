@@ -13,10 +13,12 @@ func TestParseURLFromOptions(t *testing.T) {
 	}{
 		{
 			options: Options{
-				{URIHost, []interface{}{"www.ablecloud.com"}},
-				{URIPort, []interface{}{uint32(8000)}},
-				{URIPath, []interface{}{"1", "2"}},
-				{URIQuery, []interface{}{"a=1", "b=2"}},
+				{URIHost, "www.ablecloud.com"},
+				{URIPort, uint32(8000)},
+				{URIPath, "1"},
+				{URIPath, "2"},
+				{URIQuery, "a=1"},
+				{URIQuery, "b=2"},
 			},
 			scheme: "coap",
 			host:   "www.ablecloud.com:8000",
@@ -25,9 +27,11 @@ func TestParseURLFromOptions(t *testing.T) {
 		},
 		{
 			options: Options{
-				{URIPort, []interface{}{uint32(8000)}},
-				{URIPath, []interface{}{"1", "2"}},
-				{URIQuery, []interface{}{"a=1", "b=2"}},
+				{URIPort, uint32(8000)},
+				{URIPath, "1"},
+				{URIPath, "2"},
+				{URIQuery, "a=1"},
+				{URIQuery, "b=2"},
 			},
 			scheme: "coap",
 			host:   "localhost:8000",
@@ -36,8 +40,10 @@ func TestParseURLFromOptions(t *testing.T) {
 		},
 		{
 			options: Options{
-				{URIPath, []interface{}{"1", "2"}},
-				{URIQuery, []interface{}{"a=1", "b=2"}},
+				{URIPath, "1"},
+				{URIPath, "2"},
+				{URIQuery, "a=1"},
+				{URIQuery, "b=2"},
 			},
 			scheme: "coap",
 			host:   "localhost:5683",
@@ -46,7 +52,7 @@ func TestParseURLFromOptions(t *testing.T) {
 		},
 		{
 			options: Options{
-				{URIQuery, []interface{}{"a=1"}},
+				{URIQuery, "a=1"},
 			},
 			scheme: "coap",
 			host:   "localhost:5683",

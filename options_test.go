@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"reflect"
 	"testing"
-
-	"github.com/ironzhang/coap/internal/message"
 )
 
 func OptionsString(o Options) string {
@@ -29,22 +27,28 @@ func TestOptionsClone(t *testing.T) {
 		},
 		{
 			src: Options{
-				{ID: 1, Values: []interface{}{0}},
+				{ID: 1, Value: 0},
 			},
 			dst: Options{
-				{ID: 1, Values: []interface{}{0}},
+				{ID: 1, Value: 0},
 			},
 		},
 		{
 			src: Options{
-				{ID: 0, Values: []interface{}{0}},
-				{ID: 1, Values: []interface{}{1, 1, 0}},
-				{ID: 2, Values: []interface{}{0, 1}},
+				{ID: 0, Value: 0},
+				{ID: 1, Value: 1},
+				{ID: 1, Value: 1},
+				{ID: 1, Value: 0},
+				{ID: 2, Value: 0},
+				{ID: 2, Value: 1},
 			},
 			dst: Options{
-				{ID: 0, Values: []interface{}{0}},
-				{ID: 1, Values: []interface{}{1, 1, 0}},
-				{ID: 2, Values: []interface{}{0, 1}},
+				{ID: 0, Value: 0},
+				{ID: 1, Value: 1},
+				{ID: 1, Value: 1},
+				{ID: 1, Value: 0},
+				{ID: 2, Value: 0},
+				{ID: 2, Value: 1},
 			},
 		},
 	}
@@ -57,7 +61,7 @@ func TestOptionsClone(t *testing.T) {
 
 func TestOptionsAdd(t *testing.T) {
 	datas := []struct {
-		id  message.OptionID
+		id  uint16
 		val interface{}
 	}{
 		{id: 0, val: 0},
@@ -68,9 +72,12 @@ func TestOptionsAdd(t *testing.T) {
 		{id: 1, val: 0},
 	}
 	want := Options{
-		{ID: 0, Values: []interface{}{0}},
-		{ID: 1, Values: []interface{}{1, 1, 0}},
-		{ID: 2, Values: []interface{}{0, 1}},
+		{ID: 0, Value: 0},
+		{ID: 1, Value: 1},
+		{ID: 2, Value: 0},
+		{ID: 2, Value: 1},
+		{ID: 1, Value: 1},
+		{ID: 1, Value: 0},
 	}
 	var got Options
 	for _, data := range datas {
@@ -81,38 +88,15 @@ func TestOptionsAdd(t *testing.T) {
 	}
 }
 
-func TestOptionsSet(t *testing.T) {
-	datas := []struct {
-		id  message.OptionID
-		val interface{}
-	}{
-		{id: 0, val: 0},
-		{id: 1, val: 1},
-		{id: 2, val: 0},
-		{id: 2, val: 1},
-	}
-	want := Options{
-		{ID: 0, Values: []interface{}{0}},
-		{ID: 1, Values: []interface{}{1}},
-		{ID: 2, Values: []interface{}{1}},
-	}
-	var got Options
-	for _, data := range datas {
-		got.Set(data.id, data.val)
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("\ngot:\n%s\nwant:\n%s\n", OptionsString(got), OptionsString(want))
-	}
-}
-
 func TestOptionsGet(t *testing.T) {
 	options := Options{
-		{ID: 0, Values: []interface{}{0}},
-		{ID: 1, Values: []interface{}{1}},
-		{ID: 2, Values: []interface{}{0, 1}},
+		{ID: 0, Value: 0},
+		{ID: 1, Value: 1},
+		{ID: 2, Value: 0},
+		{ID: 2, Value: 1},
 	}
 	tests := []struct {
-		id  message.OptionID
+		id  uint16
 		val interface{}
 	}{
 		{id: 0, val: 0},
@@ -130,25 +114,27 @@ func TestOptionsGet(t *testing.T) {
 
 func TestOptionsDel(t *testing.T) {
 	options := Options{
-		{ID: 0, Values: []interface{}{0}},
-		{ID: 1, Values: []interface{}{1}},
-		{ID: 2, Values: []interface{}{0, 1}},
+		{ID: 0, Value: 0},
+		{ID: 1, Value: 1},
+		{ID: 2, Value: 0},
+		{ID: 2, Value: 1},
 	}
 	tests := []struct {
-		ids     []message.OptionID
+		ids     []uint16
 		options Options
 	}{
 		{
-			ids: []message.OptionID{1},
+			ids: []uint16{1},
 			options: Options{
-				{ID: 0, Values: []interface{}{0}},
-				{ID: 2, Values: []interface{}{0, 1}},
+				{ID: 0, Value: 0},
+				{ID: 2, Value: 0},
+				{ID: 2, Value: 1},
 			},
 		},
 		{
-			ids: []message.OptionID{0, 2},
+			ids: []uint16{0, 2},
 			options: Options{
-				{ID: 1, Values: []interface{}{1}},
+				{ID: 1, Value: 1},
 			},
 		},
 	}
@@ -164,42 +150,62 @@ func TestOptionsDel(t *testing.T) {
 	}
 }
 
-func TestOptionsGetOption(t *testing.T) {
+func TestOptionsSet(t *testing.T) {
+	datas := []struct {
+		id  uint16
+		val interface{}
+	}{
+		{id: 0, val: 0},
+		{id: 1, val: 1},
+		{id: 2, val: 0},
+		{id: 2, val: 1},
+	}
+	want := Options{
+		{ID: 0, Value: 0},
+		{ID: 1, Value: 1},
+		{ID: 2, Value: 1},
+	}
+	var got Options
+	for _, data := range datas {
+		got.Set(data.id, data.val)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("\ngot:\n%s\nwant:\n%s\n", OptionsString(got), OptionsString(want))
+	}
+}
+
+func TestOptionsHas(t *testing.T) {
 	options := Options{
-		{ID: 0, Values: []interface{}{0}},
-		{ID: 1, Values: []interface{}{1}},
-		{ID: 2, Values: []interface{}{0, 1}},
+		{ID: 0, Value: 0},
+		{ID: 1, Value: 1},
+		{ID: 2, Value: 0},
+		{ID: 2, Value: 1},
 	}
 	tests := []struct {
-		id     message.OptionID
-		ok     bool
-		option message.Option
+		id uint16
+		ok bool
 	}{
-		{id: 0, ok: true, option: message.Option{ID: 0, Values: []interface{}{0}}},
-		{id: 1, ok: true, option: message.Option{ID: 1, Values: []interface{}{1}}},
-		{id: 2, ok: true, option: message.Option{ID: 2, Values: []interface{}{0, 1}}},
+		{id: 0, ok: true},
+		{id: 1, ok: true},
+		{id: 2, ok: true},
 		{id: 3, ok: false},
 	}
 	for i, tt := range tests {
-		option, ok := options.GetOption(tt.id)
+		ok := options.HasOption(tt.id)
 		if got, want := ok, tt.ok; got != want {
 			t.Errorf("case%d: ok: %v != %v", i, got, want)
-		}
-		if ok {
-			if got, want := option, tt.option; !reflect.DeepEqual(got, want) {
-				t.Errorf("case%d: option: %+v != %+v", i, got, want)
-			}
 		}
 	}
 }
 
 func TestOptionsWrite(t *testing.T) {
 	options := Options{
-		{ID: 0, Values: []interface{}{0}},
-		{ID: 1, Values: []interface{}{1}},
-		{ID: 2, Values: []interface{}{0, 1}},
+		{ID: 0, Value: 0},
+		{ID: 1, Value: 1},
+		{ID: 2, Value: 0},
+		{ID: 2, Value: 1},
 	}
-	s := "0: 0\r\n1(If-Match): 1\r\n2: 0\r\n2: 1\r\n"
+	s := "0: 0\r\nIf-Match: 1\r\n2: 0\r\n2: 1\r\n"
 
 	var b bytes.Buffer
 	options.Write(&b)
@@ -210,7 +216,9 @@ func TestOptionsWrite(t *testing.T) {
 
 func TestOptionsSetStrings(t *testing.T) {
 	want := Options{
-		{ID: 0, Values: []interface{}{"a", "b", "c"}},
+		{ID: 0, Value: "a"},
+		{ID: 0, Value: "b"},
+		{ID: 0, Value: "c"},
 	}
 	got := Options{}
 	got.SetStrings(0, []string{"a", "b", "c"})
@@ -221,7 +229,9 @@ func TestOptionsSetStrings(t *testing.T) {
 
 func TestOptionsGetStrings(t *testing.T) {
 	options := Options{
-		{ID: 0, Values: []interface{}{"a", "b", "c"}},
+		{ID: 0, Value: "a"},
+		{ID: 0, Value: "b"},
+		{ID: 0, Value: "c"},
 	}
 	if got, want := options.GetStrings(0), []string{"a", "b", "c"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("\ngot:\n%v\nwant:\n%v\n", got, want)
@@ -244,13 +254,17 @@ func TestOptionsSetPath(t *testing.T) {
 		{
 			path: "a/b/c",
 			want: Options{
-				{URIPath, []interface{}{"a", "b", "c"}},
+				{URIPath, "a"},
+				{URIPath, "b"},
+				{URIPath, "c"},
 			},
 		},
 		{
 			path: "/a/b/c",
 			want: Options{
-				{URIPath, []interface{}{"a", "b", "c"}},
+				{URIPath, "a"},
+				{URIPath, "b"},
+				{URIPath, "c"},
 			},
 		},
 	}
@@ -306,7 +320,9 @@ func TestOptionsSetQuery(t *testing.T) {
 		{
 			query: "a=1&b=2&c=3",
 			want: Options{
-				{URIQuery, []interface{}{"a=1", "b=2", "c=3"}},
+				{URIQuery, "a=1"},
+				{URIQuery, "b=2"},
+				{URIQuery, "c=3"},
 			},
 		},
 	}

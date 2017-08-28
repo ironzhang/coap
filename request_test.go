@@ -3,8 +3,6 @@ package coap
 import (
 	"reflect"
 	"testing"
-
-	"github.com/ironzhang/coap/internal/message"
 )
 
 func TestSplitHostPort(t *testing.T) {
@@ -33,7 +31,7 @@ func TestSplitHostPort(t *testing.T) {
 func TestNewRequest(t *testing.T) {
 	tests := []struct {
 		confirmable bool
-		method      message.Code
+		method      Code
 		urlstr      string
 		options     Options
 	}{
@@ -42,9 +40,13 @@ func TestNewRequest(t *testing.T) {
 			method:      GET,
 			urlstr:      "coap://localhost/1/2/3?a=1&b=2&c=3",
 			options: Options{
-				{URIHost, []interface{}{"localhost"}},
-				{URIPath, []interface{}{"1", "2", "3"}},
-				{URIQuery, []interface{}{"a=1", "b=2", "c=3"}},
+				{URIHost, "localhost"},
+				{URIPath, "1"},
+				{URIPath, "2"},
+				{URIPath, "3"},
+				{URIQuery, "a=1"},
+				{URIQuery, "b=2"},
+				{URIQuery, "c=3"},
 			},
 		},
 		{
@@ -52,8 +54,9 @@ func TestNewRequest(t *testing.T) {
 			method:      POST,
 			urlstr:      "coap://127.0.0.1:8000/a/b",
 			options: Options{
-				{URIPort, []interface{}{uint16(8000)}},
-				{URIPath, []interface{}{"a", "b"}},
+				{URIPort, uint16(8000)},
+				{URIPath, "a"},
+				{URIPath, "b"},
 			},
 		},
 		{

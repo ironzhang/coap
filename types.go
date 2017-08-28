@@ -37,28 +37,22 @@ const (
 	ProxyingNotSupported  Code = base.ProxyingNotSupported
 )
 
-type OptionID uint16
-
-func (id OptionID) String() string {
-	return base.OptionName(uint16(id))
-}
-
 // Option IDs
 const (
-	IfMatch       OptionID = base.IfMatch
-	URIHost       OptionID = base.URIHost
-	ETag          OptionID = base.ETag
-	IfNoneMatch   OptionID = base.IfNoneMatch
-	Observe       OptionID = base.Observe
-	URIPort       OptionID = base.URIPort
-	LocationPath  OptionID = base.LocationPath
-	URIPath       OptionID = base.URIPath
-	ContentFormat OptionID = base.ContentFormat
-	MaxAge        OptionID = base.MaxAge
-	URIQuery      OptionID = base.URIQuery
-	Accept        OptionID = base.Accept
-	LocationQuery OptionID = base.LocationQuery
-	ProxyURI      OptionID = base.ProxyURI
-	ProxyScheme   OptionID = base.ProxyScheme
-	Size1         OptionID = base.Size1
+	IfMatch       = base.IfMatch
+	URIHost       = base.URIHost
+	ETag          = base.ETag
+	IfNoneMatch   = base.IfNoneMatch
+	Observe       = base.Observe
+	URIPort       = base.URIPort
+	LocationPath  = base.LocationPath
+	URIPath       = base.URIPath
+	ContentFormat = base.ContentFormat
+	MaxAge        = base.MaxAge
+	URIQuery      = base.URIQuery
+	Accept        = base.Accept
+	LocationQuery = base.LocationQuery
+	ProxyURI      = base.ProxyURI
+	ProxyScheme   = base.ProxyScheme
+	Size1         = base.Size1
 )
