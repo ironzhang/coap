@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
@@ -16,7 +15,7 @@ var (
 // state 消息状态
 type state struct {
 	Start          time.Time
-	Message        message.Message
+	Message        base.Message
 	LastRetransmit time.Time
 	Retransmit     int
 	Timeout        time.Duration
@@ -31,11 +30,11 @@ type Layer struct {
 	AckTimeout      time.Duration
 	AckRandomFactor float64
 
-	timeout func(message.Message)
+	timeout func(base.Message)
 	states  map[uint16]*state
 }
 
-func NewLayer(timeout func(message.Message)) *Layer {
+func NewLayer(timeout func(base.Message)) *Layer {
 	return &Layer{
 		BaseLayer:       base.BaseLayer{Name: "reliability"},
 		MaxRetransmit:   base.MAX_RETRANSMIT,
@@ -60,8 +59,8 @@ func (l *Layer) Update() {
 	}
 }
 
-func (l *Layer) Recv(m message.Message) error {
-	if m.Type != message.ACK && m.Type != message.RST {
+func (l *Layer) Recv(m base.Message) error {
+	if m.Type != base.ACK && m.Type != base.RST {
 		return l.BaseLayer.Recv(m)
 	}
 	if l.delState(m) {
@@ -70,8 +69,8 @@ func (l *Layer) Recv(m message.Message) error {
 	return nil
 }
 
-func (l *Layer) Send(m message.Message) error {
-	if m.Type != message.CON {
+func (l *Layer) Send(m base.Message) error {
+	if m.Type != base.CON {
 		return l.BaseLayer.Send(m)
 	}
 	s, ok := l.addState(m)
@@ -99,7 +98,7 @@ func (l *Layer) doTimeout(s *state) {
 	}
 }
 
-func (l *Layer) addState(m message.Message) (*state, bool) {
+func (l *Layer) addState(m base.Message) (*state, bool) {
 	if _, ok := l.states[m.MessageID]; ok {
 		return nil, false
 	}
@@ -108,7 +107,7 @@ func (l *Layer) addState(m message.Message) (*state, bool) {
 	return s, true
 }
 
-func (l *Layer) delState(m message.Message) bool {
+func (l *Layer) delState(m base.Message) bool {
 	if _, ok := l.states[m.MessageID]; ok {
 		delete(l.states, m.MessageID)
 		return true

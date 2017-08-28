@@ -13,14 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack"
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
 var Verbose = true
-
-const defaultResponseTimeout = 20 * time.Second
 
 var (
 	ErrReset   = errors.New("wait response reset by peer")
@@ -40,7 +37,7 @@ type Observer interface {
 // ResponseWriter 用于构造COAP响应
 type ResponseWriter interface {
 	// Ack 回复空ACK，服务器无法立即响应，可先调用该方法返回一个空的ACK
-	Ack(message.Code)
+	Ack(Code)
 
 	// SetConfirmable 设置响应为可靠消息，作为单独响应时生效
 	SetConfirmable()
@@ -49,7 +46,7 @@ type ResponseWriter interface {
 	Options() Options
 
 	// WriteCode 设置响应状态码，默认为Content
-	WriteCode(message.Code)
+	WriteCode(Code)
 
 	// Write 写入payload
 	Write([]byte) (int, error)
@@ -61,19 +58,19 @@ type response struct {
 	confirmable bool
 	messageID   uint16
 	token       string
-	code        message.Code
+	code        Code
 	options     Options
 	buffer      bytes.Buffer
 	acked       bool
 	needAck     bool
 }
 
-func (r *response) Ack(code message.Code) {
+func (r *response) Ack(code Code) {
 	if r.needAck {
 		r.acked = true
-		m := message.Message{
-			Type:      ACK,
-			Code:      code,
+		m := base.Message{
+			Type:      base.ACK,
+			Code:      uint8(code),
 			MessageID: r.messageID,
 		}
 		r.session.postMessage(m)
@@ -88,7 +85,7 @@ func (r *response) Options() Options {
 	return r.options
 }
 
-func (r *response) WriteCode(code message.Code) {
+func (r *response) WriteCode(code Code) {
 	r.code = code
 }
 
@@ -184,7 +181,7 @@ func (s *session) update() {
 	for k, w := range s.respWaiters {
 		if w.Timeout() {
 			delete(s.respWaiters, k)
-			w.Done(message.Message{}, ErrTimeout)
+			w.Done(base.Message{}, ErrTimeout)
 		}
 	}
 }
@@ -206,20 +203,20 @@ func (s *session) Close() error {
 	return nil
 }
 
-func (s *session) Recv(m message.Message) error {
+func (s *session) Recv(m base.Message) error {
 	switch m.Type {
-	case CON, NON:
+	case base.CON, base.NON:
 		s.handleMSG(m)
-	case ACK:
+	case base.ACK:
 		s.handleACK(m)
-	case RST:
+	case base.RST:
 		s.handleRST(m)
 	default:
 	}
 	return nil
 }
 
-func (s *session) handleMSG(m message.Message) {
+func (s *session) handleMSG(m base.Message) {
 	if m.Code == 0 {
 		// 空消息
 		return
@@ -239,7 +236,7 @@ func (s *session) handleMSG(m message.Message) {
 	}
 }
 
-func (s *session) handleRequest(m message.Message) {
+func (s *session) handleRequest(m base.Message) {
 	if s.handler == nil {
 		log.Printf("handler is nil")
 		if err := s.sendRST(m.MessageID); err != nil {
@@ -259,8 +256,8 @@ func (s *session) handleRequest(m message.Message) {
 	// 由serving协程调用上层handler处理请求
 	s.servingc <- func() {
 		req := &Request{
-			Confirmable: m.Type == CON,
-			Method:      m.Code,
+			Confirmable: m.Type == base.CON,
+			Method:      Code(m.Code),
 			Options:     m.Options,
 			URL:         url,
 			Token:       m.Token,
@@ -280,16 +277,16 @@ func (s *session) handleRequest(m message.Message) {
 	}
 }
 
-func (s *session) handleResponse(m message.Message) {
+func (s *session) handleResponse(m base.Message) {
 	options := Options(m.Options)
-	if _, ok := options.GetOption(Observe); ok {
+	if options.HasOption(Observe) {
 		s.handleObserveResponse(m)
 	} else {
 		s.handleNormalResponse(m)
 	}
 }
 
-func (s *session) handleObserveResponse(m message.Message) {
+func (s *session) handleObserveResponse(m base.Message) {
 	if s.observer == nil {
 		log.Printf("observer is nil")
 		if err := s.sendRST(m.MessageID); err != nil {
@@ -301,8 +298,8 @@ func (s *session) handleObserveResponse(m message.Message) {
 	// 由serving协程调用上层观察者程序处理订阅响应
 	s.servingc <- func() {
 		resp := &Response{
-			Ack:     m.Type == ACK,
-			Status:  m.Code,
+			Ack:     m.Type == base.ACK,
+			Status:  Code(m.Code),
 			Options: m.Options,
 			Token:   m.Token,
 			Payload: m.Payload,
@@ -311,44 +308,44 @@ func (s *session) handleObserveResponse(m message.Message) {
 	}
 
 	// 回复ACK
-	if m.Type == CON {
+	if m.Type == base.CON {
 		if err := s.sendACK(m.MessageID); err != nil {
 			log.Printf("send ack: %v", err)
 		}
 	}
 }
 
-func (s *session) handleNormalResponse(m message.Message) {
+func (s *session) handleNormalResponse(m base.Message) {
 	// 结束响应等待
 	s.finishResponseWait(m, nil)
 
 	// 回复ACK
-	if m.Type == CON {
+	if m.Type == base.CON {
 		if err := s.sendACK(m.MessageID); err != nil {
 			log.Printf("send ack: %v", err)
 		}
 	}
 }
 
-func (s *session) handleACK(m message.Message) {
+func (s *session) handleACK(m base.Message) {
 	s.finishAckWait(m, nil)
 	if len(m.Token) > 0 {
 		s.finishResponseWait(m, nil)
 	}
 }
 
-func (s *session) handleRST(m message.Message) {
+func (s *session) handleRST(m base.Message) {
 	s.finishAckWait(m, ErrReset)
 	for k, w := range s.respWaiters {
 		if w.messageID == m.MessageID {
 			delete(s.respWaiters, k)
-			w.Done(message.Message{}, ErrReset)
+			w.Done(base.Message{}, ErrReset)
 			break
 		}
 	}
 }
 
-func (s *session) Send(m message.Message) error {
+func (s *session) Send(m base.Message) error {
 	data, err := m.Marshal()
 	if err != nil {
 		return err
@@ -357,7 +354,7 @@ func (s *session) Send(m message.Message) error {
 	return err
 }
 
-func (s *session) ackTimeout(m message.Message) {
+func (s *session) ackTimeout(m base.Message) {
 	s.finishAckWait(m, ErrTimeout)
 	if len(m.Token) > 0 {
 		s.finishResponseWait(m, ErrTimeout)
@@ -367,7 +364,7 @@ func (s *session) ackTimeout(m message.Message) {
 func (s *session) recvData(data []byte) {
 	s.lastRecvTimeUpdate()
 	s.runningc <- func() {
-		var m message.Message
+		var m base.Message
 		if err := m.Unmarshal(data); err != nil {
 			log.Printf("message unmarshal: %v", err)
 			return
@@ -376,7 +373,7 @@ func (s *session) recvData(data []byte) {
 	}
 }
 
-func (s *session) recvMessage(m message.Message) {
+func (s *session) recvMessage(m base.Message) {
 	if Verbose {
 		log.Printf("recv: %s\n", m.String())
 	}
@@ -385,7 +382,7 @@ func (s *session) recvMessage(m message.Message) {
 	}
 }
 
-func (s *session) postMessage(m message.Message) {
+func (s *session) postMessage(m base.Message) {
 	s.runningc <- func() {
 		if err := s.sendMessage(m); err != nil {
 			log.Printf("send message: %v", err)
@@ -393,7 +390,7 @@ func (s *session) postMessage(m message.Message) {
 	}
 }
 
-func (s *session) sendMessage(m message.Message) error {
+func (s *session) sendMessage(m base.Message) error {
 	if Verbose {
 		log.Printf("send: %s\n", m.String())
 	}
@@ -410,16 +407,16 @@ func (s *session) postResponse(r *response) {
 
 func (s *session) sendResponse(r *response) error {
 	if !r.needAck {
-		m := message.Message{
-			Type:      NON,
-			Code:      r.code,
+		m := base.Message{
+			Type:      base.NON,
+			Code:      uint8(r.code),
 			MessageID: s.genMessageID(),
 			Token:     r.token,
 			Options:   r.options,
 			Payload:   r.buffer.Bytes(),
 		}
 		if r.confirmable {
-			m.Type = CON
+			m.Type = base.CON
 		}
 		return s.sendMessage(m)
 	}
@@ -427,24 +424,24 @@ func (s *session) sendResponse(r *response) error {
 	if r.acked {
 		// 单独响应
 		if r.code != Content || len(r.options) > 0 || r.buffer.Len() > 0 {
-			m := message.Message{
-				Type:      NON,
-				Code:      r.code,
+			m := base.Message{
+				Type:      base.NON,
+				Code:      uint8(r.code),
 				MessageID: s.genMessageID(),
 				Token:     r.token,
 				Options:   r.options,
 				Payload:   r.buffer.Bytes(),
 			}
 			if r.confirmable {
-				m.Type = CON
+				m.Type = base.CON
 			}
 			return s.sendMessage(m)
 		}
 	} else {
 		// 附带响应
-		m := message.Message{
-			Type:      ACK,
-			Code:      r.code,
+		m := base.Message{
+			Type:      base.ACK,
+			Code:      uint8(r.code),
 			MessageID: r.messageID,
 			Token:     r.token,
 			Options:   r.options,
@@ -496,20 +493,20 @@ func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) err
 			aw.Done(err)
 		}
 		if rw != nil {
-			rw.Done(message.Message{}, err)
+			rw.Done(base.Message{}, err)
 		}
 	}
 
 	// 构造消息
-	m := message.Message{
-		Type:      NON,
-		Code:      r.Method,
+	m := base.Message{
+		Type:      base.NON,
+		Code:      uint8(r.Method),
 		MessageID: s.genMessageID(),
 		Options:   r.Options,
 		Payload:   r.Payload,
 	}
 	if r.Confirmable {
-		m.Type = CON
+		m.Type = base.CON
 	}
 	if r.useToken {
 		m.Token = r.Token
@@ -550,29 +547,29 @@ func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) err
 }
 
 func (s *session) sendACK(messageID uint16) error {
-	m := message.Message{
-		Type:      message.ACK,
+	m := base.Message{
+		Type:      base.ACK,
 		MessageID: messageID,
 	}
 	return s.sendMessage(m)
 }
 
 func (s *session) sendRST(messageID uint16) error {
-	m := message.Message{
-		Type:      message.RST,
+	m := base.Message{
+		Type:      base.RST,
 		MessageID: messageID,
 	}
 	return s.sendMessage(m)
 }
 
-func (s *session) finishAckWait(m message.Message, err error) {
+func (s *session) finishAckWait(m base.Message, err error) {
 	if w, ok := s.ackWaiters[m.MessageID]; ok {
 		delete(s.ackWaiters, m.MessageID)
 		w.Done(err)
 	}
 }
 
-func (s *session) finishResponseWait(m message.Message, err error) {
+func (s *session) finishResponseWait(m base.Message, err error) {
 	if w, ok := s.respWaiters[m.Token]; ok {
 		delete(s.respWaiters, m.Token)
 		w.Done(m, err)

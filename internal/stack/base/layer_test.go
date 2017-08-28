@@ -1,12 +1,22 @@
 package base
 
 import (
-	"fmt"
 	"io"
+	"reflect"
 	"testing"
-
-	"github.com/ironzhang/coap/internal/message"
 )
+
+func TestBaseLayerError(t *testing.T) {
+	l := BaseLayer{Name: "base"}
+	got, want := l.NewError(io.EOF), Error{Layer: l.Name, Cause: io.EOF}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("NewError: %#v != %#v", got, want)
+	}
+	got, want = l.Errorf(io.EOF, "read a.txt"), Error{Layer: l.Name, Cause: io.EOF, Details: "read a.txt"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Errorf: %v != %v", got, want)
+	}
+}
 
 func TestBaseLayer(t *testing.T) {
 	r := CountRecver{}
@@ -17,20 +27,14 @@ func TestBaseLayer(t *testing.T) {
 		Sender: &s,
 	}
 
-	l.Recv(message.Message{})
+	l.Recv(Message{})
 	if got, want := r.Count, 1; got != want {
 		t.Errorf("recv count: %v != %v", got, want)
 	}
 
-	l.Send(message.Message{})
+	l.Send(Message{})
 	l.SendRST(1)
 	if got, want := s.Count, 2; got != want {
 		t.Errorf("send count: %v != %v", got, want)
 	}
-}
-
-func TestBaseLayerError(t *testing.T) {
-	l := BaseLayer{Name: "base"}
-	fmt.Println(l.NewError(io.EOF))
-	fmt.Println(l.Errorf(io.EOF, "read a.txt"))
 }

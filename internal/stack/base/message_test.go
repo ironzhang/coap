@@ -1,4 +1,4 @@
-package message
+package base
 
 import (
 	"bytes"
@@ -52,7 +52,6 @@ func TestOptionValueToBytes(t *testing.T) {
 		{[]byte{}, []byte{}},
 		{"x", []byte{'x'}},
 		{[]byte{'x'}, []byte{'x'}},
-		{MediaType(3), []byte{0x3}},
 		{3, []byte{0x3}},
 		{838, []byte{0x3, 0x46}},
 		{int32(838), []byte{0x3, 0x46}},
@@ -73,7 +72,7 @@ func TestOptionValueToBytes(t *testing.T) {
 
 func TestBytesToOptionValue(t *testing.T) {
 	tests := []struct {
-		id  OptionID
+		id  uint16
 		buf []byte
 		val interface{}
 	}{
@@ -82,7 +81,7 @@ func TestBytesToOptionValue(t *testing.T) {
 		{URIHost, []byte{'x'}, "x"},
 		{IfNoneMatch, []byte{}, []byte{}},
 		{URIPort, []byte{0x03, 0x46}, uint32(838)},
-		{ContentFormat, []byte{0x03}, MediaType(3)},
+		{ContentFormat, []byte{0x03}, uint32(3)},
 	}
 	for i, tt := range tests {
 		val := bytesToOptionValue(tt.id, tt.buf)
@@ -154,31 +153,20 @@ func TestOptionDecoder(t *testing.T) {
 	}
 }
 
-func TestMessageAddOption(t *testing.T) {
-	inputs := []struct {
-		id  OptionID
-		val interface{}
+func TestMessageString(t *testing.T) {
+	tests := []struct {
+		m Message
+		s string
 	}{
-		{OptionID(1), 1},
-		{OptionID(1), 2},
-		{OptionID(1), 3},
-		{OptionID(2), 1},
-		{OptionID(2), 2},
-		{OptionID(2), 3},
-		{OptionID(4), 1},
+		{
+			m: Message{Type: ACK, Code: GET, MessageID: 1, Token: string([]byte{1, 2, 3, 4, 0xff})},
+			s: "Acknowledgement,GET,1,01020304ff",
+		},
 	}
-	options := []Option{
-		{ID: OptionID(1), Values: []interface{}{1, 2, 3}},
-		{ID: OptionID(2), Values: []interface{}{1, 2, 3}},
-		{ID: OptionID(4), Values: []interface{}{1}},
-	}
-
-	var m Message
-	for _, i := range inputs {
-		m.addOption(i.id, i.val)
-	}
-	if got, want := m.Options, options; !reflect.DeepEqual(got, want) {
-		t.Errorf("options: got(%v) != want(%v)", got, want)
+	for i, tt := range tests {
+		if got, want := tt.m.String(), tt.s; got != want {
+			t.Errorf("case%d: %q != %q", i, got, want)
+		}
 	}
 }
 
@@ -201,8 +189,8 @@ func TestMessage(t *testing.T) {
 				Code:      GET,
 				MessageID: 12345,
 				Options: []Option{
-					{ID: ETag, Values: []interface{}{[]byte("weetag")}},
-					{ID: MaxAge, Values: []interface{}{uint32(3)}},
+					{ID: ETag, Value: []byte("weetag")},
+					{ID: MaxAge, Value: uint32(3)},
 				},
 			},
 			b: []byte{
@@ -216,8 +204,8 @@ func TestMessage(t *testing.T) {
 				Code:      GET,
 				MessageID: 12345,
 				Options: []Option{
-					{ID: ETag, Values: []interface{}{[]byte("weetag")}},
-					{ID: MaxAge, Values: []interface{}{uint32(3)}},
+					{ID: ETag, Value: []byte("weetag")},
+					{ID: MaxAge, Value: uint32(3)},
 				},
 				Payload: []byte("hi"),
 			},

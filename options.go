@@ -6,78 +6,68 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ironzhang/coap/internal/message"
+	"github.com/ironzhang/coap/internal/stack/base"
 )
 
-type Options []message.Option
+type Options []base.Option
 
-func (options *Options) clone() Options {
-	cloneOptions := make(Options, len(*options))
-	for i, o := range *options {
-		cloneOptions[i].ID = o.ID
-		cloneOptions[i].Values = make([]interface{}, len(o.Values))
-		copy(cloneOptions[i].Values, o.Values)
-	}
-	return cloneOptions
+func (p *Options) clone() Options {
+	c := make(Options, len(*p))
+	copy(c, *p)
+	return c
 }
 
-func (options *Options) Add(id message.OptionID, v interface{}) {
-	for i := range *options {
-		o := &(*options)[i]
-		if o.ID == id {
-			o.Values = append(o.Values, v)
+func (p *Options) Add(id OptionID, v interface{}) {
+	*p = append(*p, base.Option{ID: uint16(id), Value: v})
+}
+
+func (p *Options) Set(id OptionID, v interface{}) {
+	for i := range *p {
+		o := &(*p)[i]
+		if o.ID == uint16(id) {
+			o.Value = v
 			return
 		}
 	}
-	*options = append(*options, message.Option{
-		ID:     id,
-		Values: []interface{}{v}},
-	)
+	*p = append(*p, base.Option{ID: uint16(id), Value: v})
 }
 
-func (options *Options) Set(id message.OptionID, v interface{}) {
-	for i := range *options {
-		o := &(*options)[i]
-		if o.ID == id {
-			o.Values = []interface{}{v}
-			return
-		}
-	}
-	*options = append(*options, message.Option{
-		ID:     id,
-		Values: []interface{}{v},
-	})
-}
-
-func (options *Options) Get(id message.OptionID) interface{} {
-	for _, o := range *options {
-		if o.ID == id {
-			if len(o.Values) <= 0 {
-				return nil
-			}
-			return o.Values[0]
+func (p *Options) Get(id OptionID) interface{} {
+	for _, o := range *p {
+		if o.ID == uint16(id) {
+			return o.Value
 		}
 	}
 	return nil
 }
 
-func (options *Options) Del(id message.OptionID) {
-	var results Options
-	for _, o := range *options {
-		if o.ID != id {
-			results = append(results, o)
+func (p *Options) Del(id OptionID) {
+	var res Options
+	for _, o := range *p {
+		if o.ID != uint16(id) {
+			res = append(res, o)
 		}
 	}
-	*options = results
+	*p = res
 }
 
-func (options *Options) GetOption(id message.OptionID) (message.Option, bool) {
-	for _, o := range *options {
-		if o.ID == id {
-			return o, true
+func (p *Options) HasOption(id OptionID) bool {
+	for _, o := range *p {
+		if o.ID == uint16(id) {
+			return true
 		}
 	}
-	return message.Option{}, false
+	return false
+}
+
+func (p *Options) GetValues(id OptionID) []interface{} {
+	var values []interface{}
+	for _, o := range *p {
+		if o.ID == uint16(id) {
+			values = append(values, o.Value)
+		}
+	}
+	return values
 }
 
 var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")
@@ -91,33 +81,28 @@ func (options *Options) Write(w io.Writer) error {
 	})
 
 	for _, o := range *options {
-		for _, v := range o.Values {
-			s, ok := v.(string)
-			if ok {
-				s = headerNewlineToSpace.Replace(s)
-				fmt.Fprintf(w, "%s: %s\r\n", o.ID.String(), s)
-			} else {
-				fmt.Fprintf(w, "%s: %v\r\n", o.ID.String(), v)
-			}
+		s, ok := o.Value.(string)
+		if ok {
+			s = headerNewlineToSpace.Replace(s)
+			fmt.Fprintf(w, "%s: %s\r\n", base.OptionName(o.ID), s)
+		} else {
+			fmt.Fprintf(w, "%s: %v\r\n", base.OptionName(o.ID), o.Value)
 		}
 	}
 	return nil
 }
 
-func (options *Options) SetStrings(id message.OptionID, ss []string) {
+func (options *Options) SetStrings(id OptionID, ss []string) {
 	options.Del(id)
 	for _, s := range ss {
 		options.Add(id, s)
 	}
 }
 
-func (options *Options) GetStrings(id message.OptionID) []string {
-	o, ok := options.GetOption(id)
-	if !ok {
-		return nil
-	}
-	ss := make([]string, 0, len(o.Values))
-	for _, v := range o.Values {
+func (options *Options) GetStrings(id OptionID) []string {
+	values := options.GetValues(id)
+	ss := make([]string, 0, len(values))
+	for _, v := range values {
 		if s, ok := v.(string); ok {
 			ss = append(ss, s)
 		}

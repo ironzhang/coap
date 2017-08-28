@@ -1,8 +1,9 @@
-package message
+// the file is borrowed from github.com/dustin/go-coap/message.go
+
+package base
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,217 +11,6 @@ import (
 	"reflect"
 	"sort"
 )
-
-type Type uint8
-
-const (
-	CON Type = 0
-	NON Type = 1
-	ACK Type = 2
-	RST Type = 3
-)
-
-var typeNames = [256]string{
-	CON: "Confirmable",
-	NON: "NonConfirmable",
-	ACK: "Acknowledgement",
-	RST: "Reset",
-}
-
-func init() {
-	for i := range typeNames {
-		if typeNames[i] == "" {
-			typeNames[i] = fmt.Sprintf("Unknown (0x%x)", i)
-		}
-	}
-}
-
-func (t Type) String() string {
-	return typeNames[t]
-}
-
-type Code uint8
-
-const (
-	// Request Codes
-	GET    Code = 1
-	POST   Code = 2
-	PUT    Code = 3
-	DELETE Code = 4
-
-	// Responses Codes
-	Created               Code = 65
-	Deleted               Code = 66
-	Valid                 Code = 67
-	Changed               Code = 68
-	Content               Code = 69
-	BadRequest            Code = 128
-	Unauthorized          Code = 129
-	BadOption             Code = 130
-	Forbidden             Code = 131
-	NotFound              Code = 132
-	MethodNotAllowed      Code = 133
-	NotAcceptable         Code = 134
-	PreconditionFailed    Code = 140
-	RequestEntityTooLarge Code = 141
-	UnsupportedMediaType  Code = 143
-	InternalServerError   Code = 160
-	NotImplemented        Code = 161
-	BadGateway            Code = 162
-	ServiceUnavailable    Code = 163
-	GatewayTimeout        Code = 164
-	ProxyingNotSupported  Code = 165
-)
-
-var codeNames = [256]string{
-	GET:                   "GET",
-	POST:                  "POST",
-	PUT:                   "PUT",
-	DELETE:                "DELETE",
-	Created:               "Created",
-	Deleted:               "Deleted",
-	Valid:                 "Valid",
-	Changed:               "Changed",
-	Content:               "Content",
-	BadRequest:            "BadRequest",
-	Unauthorized:          "Unauthorized",
-	BadOption:             "BadOption",
-	Forbidden:             "Forbidden",
-	NotFound:              "NotFound",
-	MethodNotAllowed:      "MethodNotAllowed",
-	NotAcceptable:         "NotAcceptable",
-	PreconditionFailed:    "PreconditionFailed",
-	RequestEntityTooLarge: "RequestEntityTooLarge",
-	UnsupportedMediaType:  "UnsupportedMediaType",
-	InternalServerError:   "InternalServerError",
-	NotImplemented:        "NotImplemented",
-	BadGateway:            "BadGateway",
-	ServiceUnavailable:    "ServiceUnavailable",
-	GatewayTimeout:        "GatewayTimeout",
-	ProxyingNotSupported:  "ProxyingNotSupported",
-}
-
-func init() {
-	for i := range codeNames {
-		if codeNames[i] == "" {
-			codeNames[i] = fmt.Sprintf("Unknown (0x%x)", i)
-		}
-	}
-}
-
-func (c Code) String() string {
-	return codeNames[c]
-}
-
-// MediaType specifies the content type of a message.
-type MediaType uint16
-
-// Content types.
-const (
-	TextPlain     MediaType = 0  // text/plain;charset=utf-8
-	AppLinkFormat MediaType = 40 // application/link-format
-	AppXML        MediaType = 41 // application/xml
-	AppOctets     MediaType = 42 // application/octet-stream
-	AppExi        MediaType = 47 // application/exi
-	AppJSON       MediaType = 50 // application/json
-)
-
-// OptionID identifies an option in a message.
-type OptionID uint16
-
-// Option IDs.
-/*
-   +-----+----+---+---+---+----------------+--------+--------+---------+
-   | No. | C  | U | N | R | Name           | Format | Length | Default |
-   +-----+----+---+---+---+----------------+--------+--------+---------+
-   |   1 | x  |   |   | x | If-Match       | opaque | 0-8    | (none)  |
-   |   3 | x  | x | - |   | Uri-Host       | string | 1-255  | (see    |
-   |     |    |   |   |   |                |        |        | below)  |
-   |   4 |    |   |   | x | ETag           | opaque | 1-8    | (none)  |
-   |   5 | x  |   |   |   | If-None-Match  | empty  | 0      | (none)  |
-   |   7 | x  | x | - |   | Uri-Port       | uint   | 0-2    | (see    |
-   |     |    |   |   |   |                |        |        | below)  |
-   |   8 |    |   |   | x | Location-Path  | string | 0-255  | (none)  |
-   |  11 | x  | x | - | x | Uri-Path       | string | 0-255  | (none)  |
-   |  12 |    |   |   |   | Content-Format | uint   | 0-2    | (none)  |
-   |  14 |    | x | - |   | Max-Age        | uint   | 0-4    | 60      |
-   |  15 | x  | x | - | x | Uri-Query      | string | 0-255  | (none)  |
-   |  17 | x  |   |   |   | Accept         | uint   | 0-2    | (none)  |
-   |  20 |    |   |   | x | Location-Query | string | 0-255  | (none)  |
-   |  35 | x  | x | - |   | Proxy-Uri      | string | 1-1034 | (none)  |
-   |  39 | x  | x | - |   | Proxy-Scheme   | string | 1-255  | (none)  |
-   |  60 |    |   | x |   | Size1          | uint   | 0-4    | (none)  |
-   +-----+----+---+---+---+----------------+--------+--------+---------+
-*/
-const (
-	IfMatch       OptionID = 1
-	URIHost       OptionID = 3
-	ETag          OptionID = 4
-	IfNoneMatch   OptionID = 5
-	Observe       OptionID = 6
-	URIPort       OptionID = 7
-	LocationPath  OptionID = 8
-	URIPath       OptionID = 11
-	ContentFormat OptionID = 12
-	MaxAge        OptionID = 14
-	URIQuery      OptionID = 15
-	Accept        OptionID = 17
-	LocationQuery OptionID = 20
-	ProxyURI      OptionID = 35
-	ProxyScheme   OptionID = 39
-	Size1         OptionID = 60
-)
-
-type OptionValueFormat int
-
-const (
-	UnknownValueFormat OptionValueFormat = iota
-	EmptyValueFormat
-	OpaqueValueFormat
-	UintValueFormat
-	StringValueFormat
-)
-
-type optionDef struct {
-	name   string
-	format OptionValueFormat
-	minLen int
-	maxLen int
-}
-
-var optionDefs = map[OptionID]optionDef{
-	IfMatch:       optionDef{name: "If-Match", format: OpaqueValueFormat, minLen: 0, maxLen: 8},
-	URIHost:       optionDef{name: "Uri-Host", format: StringValueFormat, minLen: 1, maxLen: 255},
-	ETag:          optionDef{name: "ETag", format: OpaqueValueFormat, minLen: 1, maxLen: 8},
-	IfNoneMatch:   optionDef{name: "If-None-Match", format: EmptyValueFormat, minLen: 0, maxLen: 0},
-	Observe:       optionDef{name: "Observe", format: UintValueFormat, minLen: 0, maxLen: 3},
-	URIPort:       optionDef{name: "Uri-Port", format: UintValueFormat, minLen: 0, maxLen: 2},
-	LocationPath:  optionDef{name: "Location-Path", format: StringValueFormat, minLen: 0, maxLen: 255},
-	URIPath:       optionDef{name: "Uri-Path", format: StringValueFormat, minLen: 0, maxLen: 255},
-	ContentFormat: optionDef{name: "Content-Format", format: UintValueFormat, minLen: 0, maxLen: 2},
-	MaxAge:        optionDef{name: "Max-Age", format: UintValueFormat, minLen: 0, maxLen: 4},
-	URIQuery:      optionDef{name: "Uri-Query", format: StringValueFormat, minLen: 0, maxLen: 255},
-	Accept:        optionDef{name: "Accept", format: UintValueFormat, minLen: 0, maxLen: 2},
-	LocationQuery: optionDef{name: "Location-Query", format: StringValueFormat, minLen: 0, maxLen: 255},
-	ProxyURI:      optionDef{name: "Proxy-Uri", format: StringValueFormat, minLen: 1, maxLen: 1034},
-	ProxyScheme:   optionDef{name: "Proxy-Scheme", format: StringValueFormat, minLen: 1, maxLen: 255},
-	Size1:         optionDef{name: "Size1", format: UintValueFormat, minLen: 0, maxLen: 4},
-}
-
-func SetOptionDef(id OptionID, name string, format OptionValueFormat, minLen, maxLen int) {
-	if _, ok := optionDefs[id]; ok {
-		panic(fmt.Errorf("%d option id def is seted", id))
-	}
-	optionDefs[id] = optionDef{name: name, format: format, minLen: minLen, maxLen: maxLen}
-}
-
-func (id OptionID) String() string {
-	def := optionDefs[id]
-	if len(def.name) > 0 {
-		return fmt.Sprintf("%d(%s)", id, def.name)
-	}
-	return fmt.Sprintf("%d", id)
-}
 
 // 消息格式
 /*
@@ -263,18 +53,189 @@ func (id OptionID) String() string {
 	+-------------------------------+
 */
 
-type Option struct {
-	ID     OptionID
-	Values []interface{}
+// 消息类型
+const (
+	CON = 0
+	NON = 1
+	ACK = 2
+	RST = 3
+)
+
+var typeNames = [256]string{
+	CON: "Confirmable",
+	NON: "NonConfirmable",
+	ACK: "Acknowledgement",
+	RST: "Reset",
 }
 
-type Message struct {
-	Type      Type
-	Code      Code
-	MessageID uint16
-	Token     string
-	Options   []Option
-	Payload   []byte
+func init() {
+	for i := range typeNames {
+		if typeNames[i] == "" {
+			typeNames[i] = fmt.Sprintf("Unknown (0x%x)", i)
+		}
+	}
+}
+
+func TypeName(t uint8) string {
+	return typeNames[t]
+}
+
+// Request Codes
+const (
+	GET    = 1
+	POST   = 2
+	PUT    = 3
+	DELETE = 4
+)
+
+// Responses Codes
+const (
+	Created               = 65
+	Deleted               = 66
+	Valid                 = 67
+	Changed               = 68
+	Content               = 69
+	BadRequest            = 128
+	Unauthorized          = 129
+	BadOption             = 130
+	Forbidden             = 131
+	NotFound              = 132
+	MethodNotAllowed      = 133
+	NotAcceptable         = 134
+	PreconditionFailed    = 140
+	RequestEntityTooLarge = 141
+	UnsupportedMediaType  = 143
+	InternalServerError   = 160
+	NotImplemented        = 161
+	BadGateway            = 162
+	ServiceUnavailable    = 163
+	GatewayTimeout        = 164
+	ProxyingNotSupported  = 165
+)
+
+var codeNames = [256]string{
+	GET:                   "GET",
+	POST:                  "POST",
+	PUT:                   "PUT",
+	DELETE:                "DELETE",
+	Created:               "Created",
+	Deleted:               "Deleted",
+	Valid:                 "Valid",
+	Changed:               "Changed",
+	Content:               "Content",
+	BadRequest:            "BadRequest",
+	Unauthorized:          "Unauthorized",
+	BadOption:             "BadOption",
+	Forbidden:             "Forbidden",
+	NotFound:              "NotFound",
+	MethodNotAllowed:      "MethodNotAllowed",
+	NotAcceptable:         "NotAcceptable",
+	PreconditionFailed:    "PreconditionFailed",
+	RequestEntityTooLarge: "RequestEntityTooLarge",
+	UnsupportedMediaType:  "UnsupportedMediaType",
+	InternalServerError:   "InternalServerError",
+	NotImplemented:        "NotImplemented",
+	BadGateway:            "BadGateway",
+	ServiceUnavailable:    "ServiceUnavailable",
+	GatewayTimeout:        "GatewayTimeout",
+	ProxyingNotSupported:  "ProxyingNotSupported",
+}
+
+func init() {
+	for i := range codeNames {
+		if codeNames[i] == "" {
+			codeNames[i] = fmt.Sprintf("Unknown (0x%x)", i)
+		}
+	}
+}
+
+func CodeName(c uint8) string {
+	return codeNames[c]
+}
+
+// option id
+/*
+   +-----+----+---+---+---+----------------+--------+--------+---------+
+   | No. | C  | U | N | R | Name           | Format | Length | Default |
+   +-----+----+---+---+---+----------------+--------+--------+---------+
+   |   1 | x  |   |   | x | If-Match       | opaque | 0-8    | (none)  |
+   |   3 | x  | x | - |   | Uri-Host       | string | 1-255  | (see    |
+   |     |    |   |   |   |                |        |        | below)  |
+   |   4 |    |   |   | x | ETag           | opaque | 1-8    | (none)  |
+   |   5 | x  |   |   |   | If-None-Match  | empty  | 0      | (none)  |
+   |   7 | x  | x | - |   | Uri-Port       | uint   | 0-2    | (see    |
+   |     |    |   |   |   |                |        |        | below)  |
+   |   8 |    |   |   | x | Location-Path  | string | 0-255  | (none)  |
+   |  11 | x  | x | - | x | Uri-Path       | string | 0-255  | (none)  |
+   |  12 |    |   |   |   | Content-Format | uint   | 0-2    | (none)  |
+   |  14 |    | x | - |   | Max-Age        | uint   | 0-4    | 60      |
+   |  15 | x  | x | - | x | Uri-Query      | string | 0-255  | (none)  |
+   |  17 | x  |   |   |   | Accept         | uint   | 0-2    | (none)  |
+   |  20 |    |   |   | x | Location-Query | string | 0-255  | (none)  |
+   |  35 | x  | x | - |   | Proxy-Uri      | string | 1-1034 | (none)  |
+   |  39 | x  | x | - |   | Proxy-Scheme   | string | 1-255  | (none)  |
+   |  60 |    |   | x |   | Size1          | uint   | 0-4    | (none)  |
+   +-----+----+---+---+---+----------------+--------+--------+---------+
+*/
+const (
+	IfMatch       = 1
+	URIHost       = 3
+	ETag          = 4
+	IfNoneMatch   = 5
+	Observe       = 6
+	URIPort       = 7
+	LocationPath  = 8
+	URIPath       = 11
+	ContentFormat = 12
+	MaxAge        = 14
+	URIQuery      = 15
+	Accept        = 17
+	LocationQuery = 20
+	ProxyURI      = 35
+	ProxyScheme   = 39
+	Size1         = 60
+)
+
+const (
+	UnknownValueFormat = iota
+	EmptyValueFormat
+	OpaqueValueFormat
+	UintValueFormat
+	StringValueFormat
+)
+
+type optionDef struct {
+	name   string
+	format int
+	minLen int
+	maxLen int
+}
+
+var optionDefs = map[uint16]optionDef{
+	IfMatch:       optionDef{name: "If-Match", format: OpaqueValueFormat, minLen: 0, maxLen: 8},
+	URIHost:       optionDef{name: "Uri-Host", format: StringValueFormat, minLen: 1, maxLen: 255},
+	ETag:          optionDef{name: "ETag", format: OpaqueValueFormat, minLen: 1, maxLen: 8},
+	IfNoneMatch:   optionDef{name: "If-None-Match", format: EmptyValueFormat, minLen: 0, maxLen: 0},
+	Observe:       optionDef{name: "Observe", format: UintValueFormat, minLen: 0, maxLen: 3},
+	URIPort:       optionDef{name: "Uri-Port", format: UintValueFormat, minLen: 0, maxLen: 2},
+	LocationPath:  optionDef{name: "Location-Path", format: StringValueFormat, minLen: 0, maxLen: 255},
+	URIPath:       optionDef{name: "Uri-Path", format: StringValueFormat, minLen: 0, maxLen: 255},
+	ContentFormat: optionDef{name: "Content-Format", format: UintValueFormat, minLen: 0, maxLen: 2},
+	MaxAge:        optionDef{name: "Max-Age", format: UintValueFormat, minLen: 0, maxLen: 4},
+	URIQuery:      optionDef{name: "Uri-Query", format: StringValueFormat, minLen: 0, maxLen: 255},
+	Accept:        optionDef{name: "Accept", format: UintValueFormat, minLen: 0, maxLen: 2},
+	LocationQuery: optionDef{name: "Location-Query", format: StringValueFormat, minLen: 0, maxLen: 255},
+	ProxyURI:      optionDef{name: "Proxy-Uri", format: StringValueFormat, minLen: 1, maxLen: 1034},
+	ProxyScheme:   optionDef{name: "Proxy-Scheme", format: StringValueFormat, minLen: 1, maxLen: 255},
+	Size1:         optionDef{name: "Size1", format: UintValueFormat, minLen: 0, maxLen: 4},
+}
+
+func OptionName(id uint16) string {
+	def := optionDefs[id]
+	if def.name == "" {
+		return fmt.Sprintf("%d", id)
+	}
+	return def.name
 }
 
 type fixHeader struct {
@@ -283,9 +244,35 @@ type fixHeader struct {
 	MessageID uint16
 }
 
-func (m *Message) String() string {
-	return fmt.Sprintf("Type: %s, Code: %s, MessageID: %d, Token: %s", m.Type.String(), m.Code.String(), m.MessageID,
-		base64.StdEncoding.EncodeToString([]byte(m.Token)))
+// Option COAP消息选项
+type Option struct {
+	ID    uint16
+	Value interface{}
+}
+
+// Message COAP消息
+type Message struct {
+	Type      uint8
+	Code      uint8
+	MessageID uint16
+	Token     string
+	Options   []Option
+	Payload   []byte
+}
+
+func (m Message) String() string {
+	if len(m.Token) <= 0 {
+		return fmt.Sprintf("%s,%s,%d", TypeName(m.Type), CodeName(m.Code), m.MessageID)
+	}
+	return fmt.Sprintf("%s,%s,%d,%s", TypeName(m.Type), CodeName(m.Code), m.MessageID, m.visToken())
+}
+
+func (m Message) visToken() string {
+	var buf bytes.Buffer
+	for _, b := range []byte(m.Token) {
+		fmt.Fprintf(&buf, "%02x", b)
+	}
+	return buf.String()
 }
 
 func (m *Message) Marshal() ([]byte, error) {
@@ -294,8 +281,8 @@ func (m *Message) Marshal() ([]byte, error) {
 
 	// header
 	h := fixHeader{
-		Flags:     (1 << 6) | (uint8(m.Type) << 4) | 0x0f&uint8(len(m.Token)),
-		Code:      uint8(m.Code),
+		Flags:     1<<6 | m.Type<<4 | 0x0f&uint8(len(m.Token)),
+		Code:      m.Code,
 		MessageID: m.MessageID,
 	}
 	if err = binary.Write(&buf, binary.BigEndian, h); err != nil {
@@ -312,19 +299,17 @@ func (m *Message) Marshal() ([]byte, error) {
 		}
 		return m.Options[i].ID < m.Options[j].ID
 	})
-	var prev OptionID
+	var prev uint16
 	enc := optionEncoder{w: &buf}
 	for _, opt := range m.Options {
-		for _, val := range opt.Values {
-			data, err := optionValueToBytes(val)
-			if err != nil {
-				return nil, err
-			}
-			if err = enc.Encode(uint32(opt.ID-prev), data); err != nil {
-				return nil, err
-			}
-			prev = opt.ID
+		data, err := optionValueToBytes(opt.Value)
+		if err != nil {
+			return nil, err
 		}
+		if err = enc.Encode(uint32(opt.ID-prev), data); err != nil {
+			return nil, err
+		}
+		prev = opt.ID
 	}
 
 	// payload
@@ -348,8 +333,8 @@ func (m *Message) Unmarshal(data []byte) (err error) {
 	if err = binary.Read(buf, binary.BigEndian, &h); err != nil {
 		return err
 	}
-	m.Type = Type((h.Flags >> 4) & 0x3)
-	m.Code = Code(h.Code)
+	m.Type = (h.Flags >> 4) & 0x3
+	m.Code = h.Code
 	m.MessageID = h.MessageID
 
 	// token
@@ -366,7 +351,7 @@ func (m *Message) Unmarshal(data []byte) (err error) {
 	}
 
 	// options
-	var prev OptionID
+	var prev uint16
 	dec := optionDecoder{r: buf}
 	for buf.Len() > 0 {
 		flag, err := buf.ReadByte()
@@ -380,10 +365,10 @@ func (m *Message) Unmarshal(data []byte) (err error) {
 		if err != nil {
 			return err
 		}
-		id := prev + OptionID(delta)
+		id := prev + uint16(delta)
 		val := bytesToOptionValue(id, data)
 		if val != nil {
-			m.addOption(id, val)
+			m.Options = append(m.Options, Option{ID: id, Value: val})
 		}
 		prev = id
 	}
@@ -397,15 +382,6 @@ func (m *Message) Unmarshal(data []byte) (err error) {
 	}
 
 	return nil
-}
-
-func (m *Message) addOption(id OptionID, value interface{}) {
-	i := len(m.Options) - 1
-	if i >= 0 && m.Options[i].ID == id {
-		m.Options[i].Values = append(m.Options[i].Values, value)
-	} else {
-		m.Options = append(m.Options, Option{ID: id, Values: []interface{}{value}})
-	}
 }
 
 func encodeUint8(v uint8) []byte {
@@ -482,7 +458,7 @@ func optionValueToBytes(v interface{}) ([]byte, error) {
 	return encodeUintVariant(u), nil
 }
 
-func bytesToOptionValue(id OptionID, buf []byte) interface{} {
+func bytesToOptionValue(id uint16, buf []byte) interface{} {
 	def := optionDefs[id]
 	if def.format == UnknownValueFormat {
 		return nil
@@ -495,12 +471,7 @@ func bytesToOptionValue(id OptionID, buf []byte) interface{} {
 	case EmptyValueFormat, OpaqueValueFormat:
 		return buf
 	case UintValueFormat:
-		i := decodeUintVariant(buf)
-		if id == ContentFormat || id == Accept {
-			return MediaType(i)
-		} else {
-			return i
-		}
+		return decodeUintVariant(buf)
 	case StringValueFormat:
 		return string(buf)
 	}

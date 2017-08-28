@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
@@ -33,14 +32,14 @@ func TestRecvAck(t *testing.T) {
 	l.BaseLayer.Recver = &r
 	l.BaseLayer.Sender = &s
 
-	m := message.Message{Type: message.CON, Code: message.GET, MessageID: 1}
+	m := base.Message{Type: base.CON, Code: base.GET, MessageID: 1}
 	if err := l.Send(m); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	for r.Count <= 0 {
 		time.Sleep(2 * l.AckTimeout)
 		l.Update()
-		l.Recv(message.Message{Type: message.ACK, Code: message.Content, MessageID: 1})
+		l.Recv(base.Message{Type: base.ACK, Code: base.Content, MessageID: 1})
 	}
 	time.Sleep(2 * l.AckTimeout)
 	l.Update()
@@ -53,7 +52,7 @@ type Timeout struct {
 	timeout bool
 }
 
-func (t *Timeout) Timeout(m message.Message) {
+func (t *Timeout) Timeout(m base.Message) {
 	t.timeout = true
 }
 
@@ -66,7 +65,7 @@ func TestAckTimeout(t *testing.T) {
 	l.BaseLayer.Recver = &r
 	l.BaseLayer.Sender = &s
 
-	m := message.Message{Type: message.CON, Code: message.GET, MessageID: 1}
+	m := base.Message{Type: base.CON, Code: base.GET, MessageID: 1}
 	if err := l.Send(m); err != nil {
 		t.Fatalf("send: %v", err)
 	}

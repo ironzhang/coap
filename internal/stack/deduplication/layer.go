@@ -5,7 +5,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
@@ -17,16 +16,16 @@ var (
 
 type state struct {
 	Time    time.Time
-	Type    message.Type
+	Type    uint8
 	Saved   bool
-	Message message.Message
+	Message base.Message
 }
 
 func (s *state) Timeout(d time.Duration) bool {
 	return time.Since(s.Time) > d
 }
 
-func (s *state) PutMessage(m message.Message) bool {
+func (s *state) PutMessage(m base.Message) bool {
 	if s.Saved {
 		return false
 	}
@@ -35,7 +34,7 @@ func (s *state) PutMessage(m message.Message) bool {
 	return true
 }
 
-func (s *state) GetMessage() (message.Message, bool) {
+func (s *state) GetMessage() (base.Message, bool) {
 	return s.Message, s.Saved
 }
 
@@ -66,8 +65,8 @@ func (l *Layer) Update() {
 	}
 }
 
-func (l *Layer) Recv(m message.Message) error {
-	if m.Type != message.CON && m.Type != message.NON {
+func (l *Layer) Recv(m base.Message) error {
+	if m.Type != base.CON && m.Type != base.NON {
 		return l.BaseLayer.Recv(m)
 	}
 
@@ -77,11 +76,11 @@ func (l *Layer) Recv(m message.Message) error {
 	}
 
 	switch {
-	case s.Type == message.NON && m.Type == message.NON:
+	case s.Type == base.NON && m.Type == base.NON:
 		// 正常分支，忽略重复的NON消息
 		return nil
 
-	case s.Type == message.CON && m.Type == message.CON:
+	case s.Type == base.CON && m.Type == base.CON:
 		// 正常分支，忽略或回复保存的消息
 		if msg, ok := s.GetMessage(); ok {
 			if err := l.BaseLayer.Send(msg); err != nil {
@@ -90,14 +89,14 @@ func (l *Layer) Recv(m message.Message) error {
 		}
 		return nil
 
-	case s.Type == message.NON && m.Type == message.CON:
+	case s.Type == base.NON && m.Type == base.CON:
 		// 异常分支，回复RST
 		if err := l.BaseLayer.SendRST(m.MessageID); err != nil {
 			log.Printf("send rst: %v", err)
 		}
 		return nil
 
-	case s.Type == message.CON && m.Type == message.NON:
+	case s.Type == base.CON && m.Type == base.NON:
 		// 异常分支，忽略消息
 		return nil
 	}
@@ -105,8 +104,8 @@ func (l *Layer) Recv(m message.Message) error {
 	panic("never arrive")
 }
 
-func (l *Layer) Send(m message.Message) error {
-	if m.Type != message.ACK && m.Type != message.RST {
+func (l *Layer) Send(m base.Message) error {
+	if m.Type != base.ACK && m.Type != base.RST {
 		return l.BaseLayer.Send(m)
 	}
 
@@ -115,7 +114,7 @@ func (l *Layer) Send(m message.Message) error {
 	if !ok {
 		return l.BaseLayer.NewError(ErrStateNotFound)
 	}
-	if s.Type == message.NON && m.Type == message.ACK {
+	if s.Type == base.NON && m.Type == base.ACK {
 		// NON消息不可能有ACK
 		return l.BaseLayer.NewError(ErrAckNonMessage)
 	}
@@ -140,15 +139,15 @@ func (l *Layer) getState(id uint16) (*state, bool) {
 
 func (l *Layer) timeout(s *state) bool {
 	switch s.Type {
-	case message.CON:
+	case base.CON:
 		return s.Timeout(l.ExchangeLifetime)
-	case message.NON:
+	case base.NON:
 		return s.Timeout(l.NonLifetime)
 	}
 	return true
 }
 
-func (l *Layer) recv(m message.Message) error {
+func (l *Layer) recv(m base.Message) error {
 	l.states[m.MessageID] = &state{Time: time.Now(), Type: m.Type}
 	return l.BaseLayer.Recv(m)
 }

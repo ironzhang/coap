@@ -4,16 +4,14 @@ import (
 	"fmt"
 	"io"
 	"time"
-
-	"github.com/ironzhang/coap/internal/message"
 )
 
 type Recver interface {
-	Recv(m message.Message) error
+	Recv(m Message) error
 }
 
 type Sender interface {
-	Send(m message.Message) error
+	Send(m Message) error
 }
 
 type Setter interface {
@@ -51,9 +49,8 @@ func (l *BaseLayer) Errorf(cause error, format string, a ...interface{}) error {
 }
 
 func (l *BaseLayer) SendRST(messageID uint16) error {
-	m := message.Message{
-		Type:      message.RST,
-		Code:      0,
+	m := Message{
+		Type:      RST,
 		MessageID: messageID,
 	}
 	return l.Send(m)
@@ -64,7 +61,7 @@ type CountRecver struct {
 	Count  int
 }
 
-func (p *CountRecver) Recv(m message.Message) error {
+func (p *CountRecver) Recv(m Message) error {
 	if p.Writer != nil {
 		fmt.Fprintf(p.Writer, "[%s] Recv: %v\n", time.Now(), m.String())
 	}
@@ -77,7 +74,7 @@ type CountSender struct {
 	Count  int
 }
 
-func (p *CountSender) Send(m message.Message) error {
+func (p *CountSender) Send(m Message) error {
 	if p.Writer != nil {
 		fmt.Fprintf(p.Writer, "[%s] Send: %v\n", time.Now(), m.String())
 	}

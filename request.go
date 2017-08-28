@@ -7,13 +7,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/ironzhang/coap/internal/message"
 )
 
 type Request struct {
 	Confirmable bool
-	Method      message.Code
+	Method      Code
 	Options     Options
 	URL         *url.URL
 	Token       string
@@ -25,7 +23,7 @@ type Request struct {
 	useToken bool
 }
 
-func NewRequest(confirmable bool, method message.Code, urlstr string, payload []byte) (*Request, error) {
+func NewRequest(confirmable bool, method Code, urlstr string, payload []byte) (*Request, error) {
 	u, err := url.Parse(urlstr)
 	if err != nil {
 		return nil, err

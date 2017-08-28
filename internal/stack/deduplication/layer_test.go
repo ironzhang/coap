@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ironzhang/coap/internal/message"
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
@@ -40,19 +39,19 @@ func TestLayerTimeout(t *testing.T) {
 		result bool
 	}{
 		{
-			state:  state{Time: time.Now().Add(-l.ExchangeLifetime + 1*time.Second), Type: message.CON},
+			state:  state{Time: time.Now().Add(-l.ExchangeLifetime + 1*time.Second), Type: base.CON},
 			result: false,
 		},
 		{
-			state:  state{Time: time.Now().Add(-l.ExchangeLifetime - 1*time.Second), Type: message.CON},
+			state:  state{Time: time.Now().Add(-l.ExchangeLifetime - 1*time.Second), Type: base.CON},
 			result: true,
 		},
 		{
-			state:  state{Time: time.Now().Add(-l.NonLifetime + 1*time.Second), Type: message.NON},
+			state:  state{Time: time.Now().Add(-l.NonLifetime + 1*time.Second), Type: base.NON},
 			result: false,
 		},
 		{
-			state:  state{Time: time.Now().Add(-l.NonLifetime - 1*time.Second), Type: message.NON},
+			state:  state{Time: time.Now().Add(-l.NonLifetime - 1*time.Second), Type: base.NON},
 			result: true,
 		},
 	}
@@ -73,15 +72,15 @@ func TestLayerUpdate(t *testing.T) {
 	prepare := func(non, con, ack, rst int) {
 		count := non + con + ack + rst
 		for i := 0; i < count; i++ {
-			m := message.Message{MessageID: uint16(i)}
+			m := base.Message{MessageID: uint16(i)}
 			if i < non {
-				m.Type = message.NON
+				m.Type = base.NON
 			} else if i < non+con {
-				m.Type = message.CON
+				m.Type = base.CON
 			} else if i < non+con+ack {
-				m.Type = message.ACK
+				m.Type = base.ACK
 			} else {
-				m.Type = message.RST
+				m.Type = base.RST
 			}
 			l.Recv(m)
 		}
@@ -123,21 +122,21 @@ func TestRecvTimeout(t *testing.T) {
 
 	n := 100
 	tests := []struct {
-		mesg  message.Message
+		mesg  base.Message
 		sleep time.Duration
 	}{
 		{
-			mesg: message.Message{
-				Type:      message.CON,
-				Code:      message.GET,
+			mesg: base.Message{
+				Type:      base.CON,
+				Code:      base.GET,
 				MessageID: 1,
 			},
 			sleep: l.ExchangeLifetime,
 		},
 		{
-			mesg: message.Message{
-				Type:      message.NON,
-				Code:      message.GET,
+			mesg: base.Message{
+				Type:      base.NON,
+				Code:      base.GET,
 				MessageID: 2,
 			},
 			sleep: l.NonLifetime,
@@ -169,51 +168,51 @@ func TestRecvMessage(t *testing.T) {
 	l.BaseLayer.Sender = &s
 
 	tests := []struct {
-		mesgs     []message.Message
+		mesgs     []base.Message
 		recvCount int
 		sendCount int
 	}{
 		{
-			mesgs:     []message.Message{},
+			mesgs:     []base.Message{},
 			recvCount: 0,
 			sendCount: 0,
 		},
 		{
-			mesgs: []message.Message{
-				{Type: message.CON, MessageID: 10},
-				{Type: message.CON, MessageID: 11},
-				{Type: message.CON, MessageID: 10},
-				{Type: message.CON, MessageID: 11},
+			mesgs: []base.Message{
+				{Type: base.CON, MessageID: 10},
+				{Type: base.CON, MessageID: 11},
+				{Type: base.CON, MessageID: 10},
+				{Type: base.CON, MessageID: 11},
 			},
 			recvCount: 2,
 			sendCount: 0,
 		},
 		{
-			mesgs: []message.Message{
-				{Type: message.CON, MessageID: 20},
-				{Type: message.CON, MessageID: 21},
-				{Type: message.NON, MessageID: 20},
-				{Type: message.NON, MessageID: 21},
+			mesgs: []base.Message{
+				{Type: base.CON, MessageID: 20},
+				{Type: base.CON, MessageID: 21},
+				{Type: base.NON, MessageID: 20},
+				{Type: base.NON, MessageID: 21},
 			},
 			recvCount: 2,
 			sendCount: 0,
 		},
 		{
-			mesgs: []message.Message{
-				{Type: message.NON, MessageID: 30},
-				{Type: message.NON, MessageID: 31},
-				{Type: message.NON, MessageID: 30},
-				{Type: message.NON, MessageID: 31},
+			mesgs: []base.Message{
+				{Type: base.NON, MessageID: 30},
+				{Type: base.NON, MessageID: 31},
+				{Type: base.NON, MessageID: 30},
+				{Type: base.NON, MessageID: 31},
 			},
 			recvCount: 2,
 			sendCount: 0,
 		},
 		{
-			mesgs: []message.Message{
-				{Type: message.NON, MessageID: 40},
-				{Type: message.NON, MessageID: 41},
-				{Type: message.CON, MessageID: 40},
-				{Type: message.CON, MessageID: 41},
+			mesgs: []base.Message{
+				{Type: base.NON, MessageID: 40},
+				{Type: base.NON, MessageID: 41},
+				{Type: base.CON, MessageID: 40},
+				{Type: base.CON, MessageID: 41},
 			},
 			recvCount: 2,
 			sendCount: 2,
@@ -244,62 +243,62 @@ func TestRecvSend(t *testing.T) {
 	l.BaseLayer.Sender = &s
 
 	tests := []struct {
-		recv      message.Message
-		send      message.Message
+		recv      base.Message
+		send      base.Message
 		recvCount int
 		sendCount int
 	}{
 		{
-			recv: message.Message{
-				Type:      message.CON,
-				Code:      message.GET,
+			recv: base.Message{
+				Type:      base.CON,
+				Code:      base.GET,
 				MessageID: 1,
 			},
-			send: message.Message{
-				Type:      message.ACK,
-				Code:      message.Content,
+			send: base.Message{
+				Type:      base.ACK,
+				Code:      base.Content,
 				MessageID: 1,
 			},
 			recvCount: 1,
 			sendCount: 2,
 		},
 		{
-			recv: message.Message{
-				Type:      message.CON,
-				Code:      message.GET,
+			recv: base.Message{
+				Type:      base.CON,
+				Code:      base.GET,
 				MessageID: 2,
 			},
-			send: message.Message{
-				Type:      message.RST,
-				Code:      message.Content,
+			send: base.Message{
+				Type:      base.RST,
+				Code:      base.Content,
 				MessageID: 2,
 			},
 			recvCount: 1,
 			sendCount: 2,
 		},
 		{
-			recv: message.Message{
-				Type:      message.CON,
-				Code:      message.GET,
+			recv: base.Message{
+				Type:      base.CON,
+				Code:      base.GET,
 				MessageID: 3,
 			},
-			send: message.Message{
-				Type:      message.CON,
-				Code:      message.Content,
+			send: base.Message{
+				Type:      base.CON,
+				Code:      base.Content,
 				MessageID: 3,
 			},
 			recvCount: 1,
 			sendCount: 1,
 		},
 		{
-			recv: message.Message{
-				Type:      message.NON,
-				Code:      message.GET,
+			recv: base.Message{
+				Type:      base.NON,
+				Code:      base.GET,
 				MessageID: 4,
 			},
-			send: message.Message{
-				Type:      message.RST,
-				Code:      message.Content,
+			send: base.Message{
+				Type:      base.RST,
+				Code:      base.Content,
 				MessageID: 4,
 			},
 			recvCount: 1,
