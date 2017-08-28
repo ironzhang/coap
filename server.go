@@ -67,7 +67,29 @@ func (s *Server) SendRequest(req *Request) (*Response, error) {
 	return sess.postRequestAndWaitResponse(req)
 }
 
-func (s *Server) SendObserveRequest(req *Request) error {
+// Observe 订阅
+func (s *Server) Observe(token, urlstr string) error {
+	req, err := NewRequest(true, GET, urlstr, nil)
+	if err != nil {
+		return err
+	}
+	req.useToken = true
+	req.Token = token
+	req.Options.Set(Observe, 0)
+	return s.postRequestAndWaitAck(req)
+}
+
+// CancelObserve 取消订阅
+func (s *Server) CancelObserve(urlstr string) error {
+	req, err := NewRequest(true, GET, urlstr, nil)
+	if err != nil {
+		return err
+	}
+	req.Options.Set(Observe, 1)
+	return s.postRequestAndWaitAck(req)
+}
+
+func (s *Server) postRequestAndWaitAck(req *Request) error {
 	addr, err := net.ResolveUDPAddr("udp", req.URL.Host)
 	if err != nil {
 		return err
