@@ -279,7 +279,7 @@ func (s *session) handleRequest(m base.Message) {
 
 func (s *session) handleResponse(m base.Message) {
 	options := Options(m.Options)
-	if options.HasOption(Observe) {
+	if options.Contain(Observe) {
 		s.handleObserveResponse(m)
 	} else {
 		s.handleNormalResponse(m)

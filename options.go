@@ -21,15 +21,6 @@ func (p *Options) Add(id uint16, v interface{}) {
 	*p = append(*p, base.Option{ID: id, Value: v})
 }
 
-func (p *Options) Get(id uint16) interface{} {
-	for _, o := range *p {
-		if o.ID == id {
-			return o.Value
-		}
-	}
-	return nil
-}
-
 func (p *Options) Del(id uint16) {
 	var res Options
 	for _, o := range *p {
@@ -45,13 +36,13 @@ func (p *Options) Set(id uint16, v interface{}) {
 	p.Add(id, v)
 }
 
-func (p *Options) HasOption(id uint16) bool {
+func (p *Options) Get(id uint16) interface{} {
 	for _, o := range *p {
-		if o.ID == uint16(id) {
-			return true
+		if o.ID == id {
+			return o.Value
 		}
 	}
-	return false
+	return nil
 }
 
 func (p *Options) GetValues(id uint16) []interface{} {
@@ -62,6 +53,15 @@ func (p *Options) GetValues(id uint16) []interface{} {
 		}
 	}
 	return values
+}
+
+func (p *Options) Contain(id uint16) bool {
+	for _, o := range *p {
+		if o.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")

@@ -88,30 +88,6 @@ func TestOptionsAdd(t *testing.T) {
 	}
 }
 
-func TestOptionsGet(t *testing.T) {
-	options := Options{
-		{ID: 0, Value: 0},
-		{ID: 1, Value: 1},
-		{ID: 2, Value: 0},
-		{ID: 2, Value: 1},
-	}
-	tests := []struct {
-		id  uint16
-		val interface{}
-	}{
-		{id: 0, val: 0},
-		{id: 1, val: 1},
-		{id: 2, val: 0},
-		{id: 2, val: 0},
-		{id: 3, val: nil},
-	}
-	for i, tt := range tests {
-		if got, want := options.Get(tt.id), tt.val; !reflect.DeepEqual(got, want) {
-			t.Errorf("case%d: %v != %v", i, got, want)
-		}
-	}
-}
-
 func TestOptionsDel(t *testing.T) {
 	options := Options{
 		{ID: 0, Value: 0},
@@ -174,7 +150,31 @@ func TestOptionsSet(t *testing.T) {
 	}
 }
 
-func TestOptionsHas(t *testing.T) {
+func TestOptionsGet(t *testing.T) {
+	options := Options{
+		{ID: 0, Value: 0},
+		{ID: 1, Value: 1},
+		{ID: 2, Value: 0},
+		{ID: 2, Value: 1},
+	}
+	tests := []struct {
+		id  uint16
+		val interface{}
+	}{
+		{id: 0, val: 0},
+		{id: 1, val: 1},
+		{id: 2, val: 0},
+		{id: 2, val: 0},
+		{id: 3, val: nil},
+	}
+	for i, tt := range tests {
+		if got, want := options.Get(tt.id), tt.val; !reflect.DeepEqual(got, want) {
+			t.Errorf("case%d: %v != %v", i, got, want)
+		}
+	}
+}
+
+func TestOptionsContain(t *testing.T) {
 	options := Options{
 		{ID: 0, Value: 0},
 		{ID: 1, Value: 1},
@@ -191,7 +191,7 @@ func TestOptionsHas(t *testing.T) {
 		{id: 3, ok: false},
 	}
 	for i, tt := range tests {
-		ok := options.HasOption(tt.id)
+		ok := options.Contain(tt.id)
 		if got, want := ok, tt.ok; got != want {
 			t.Errorf("case%d: ok: %v != %v", i, got, want)
 		}
