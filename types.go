@@ -2,7 +2,12 @@ package coap
 
 import "github.com/ironzhang/coap/internal/stack/base"
 
+// Code COAP消息码
 type Code uint8
+
+func (c Code) String() string {
+	return base.CodeName(uint8(c))
+}
 
 // Request Codes
 const (

@@ -9,8 +9,12 @@ import (
 	"github.com/ironzhang/coap/internal/gctable"
 )
 
-func ListenAndServe(network, address string, h Handler) error {
-	return (&Server{Handler: h}).ListenAndServe(network, address)
+// ListenAndServe 在指定地址端口监听并提供COAP服务.
+func ListenAndServe(network, address string, h Handler, o Observer) error {
+	return (&Server{
+		Handler:  h,
+		Observer: o,
+	}).ListenAndServe(network, address)
 }
 
 // Server 定义了运行一个COAP Server的参数

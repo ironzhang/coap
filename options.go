@@ -76,15 +76,15 @@ func (p *Options) Contain(id uint16) bool {
 var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")
 
 // Write 以特定格式输出Options.
-func (options *Options) Write(w io.Writer) error {
-	sort.Slice(*options, func(i, j int) bool {
-		if (*options)[i].ID == (*options)[j].ID {
+func (p *Options) Write(w io.Writer) error {
+	sort.Slice(*p, func(i, j int) bool {
+		if (*p)[i].ID == (*p)[j].ID {
 			return i < j
 		}
-		return (*options)[i].ID < (*options)[j].ID
+		return (*p)[i].ID < (*p)[j].ID
 	})
 
-	for _, o := range *options {
+	for _, o := range *p {
 		s, ok := o.Value.(string)
 		if ok {
 			s = headerNewlineToSpace.Replace(s)
@@ -97,16 +97,16 @@ func (options *Options) Write(w io.Writer) error {
 }
 
 // SetStrings 设置设置指定选项的所有值, 以字符串数组形式写入.
-func (options *Options) SetStrings(id uint16, ss []string) {
-	options.Del(id)
+func (p *Options) SetStrings(id uint16, ss []string) {
+	p.Del(id)
 	for _, s := range ss {
-		options.Add(id, s)
+		p.Add(id, s)
 	}
 }
 
 // GetStrings 获取指定选项的所有值, 以字符串数组形式返回.
-func (options *Options) GetStrings(id uint16) []string {
-	values := options.GetValues(id)
+func (p *Options) GetStrings(id uint16) []string {
+	values := p.GetValues(id)
 	ss := make([]string, 0, len(values))
 	for _, v := range values {
 		if s, ok := v.(string); ok {
@@ -117,30 +117,30 @@ func (options *Options) GetStrings(id uint16) []string {
 }
 
 // SetPath 设置URIPath.
-func (options *Options) SetPath(path string) {
+func (p *Options) SetPath(path string) {
 	if len(path) > 0 && path[0] == '/' {
 		path = path[1:]
 	}
 	if len(path) > 0 {
-		options.SetStrings(URIPath, strings.Split(path, "/"))
+		p.SetStrings(URIPath, strings.Split(path, "/"))
 	}
 }
 
 // GetPath 获取URIPath.
-func (options *Options) GetPath() string {
-	paths := options.GetStrings(URIPath)
+func (p *Options) GetPath() string {
+	paths := p.GetStrings(URIPath)
 	return strings.Join(paths, "/")
 }
 
 // SetQuery 设置URIQuery.
-func (options *Options) SetQuery(query string) {
+func (p *Options) SetQuery(query string) {
 	if len(query) > 0 {
-		options.SetStrings(URIQuery, strings.Split(query, "&"))
+		p.SetStrings(URIQuery, strings.Split(query, "&"))
 	}
 }
 
 // GetQuery 获取URIQuery.
-func (options *Options) GetQuery() string {
-	querys := options.GetStrings(URIQuery)
+func (p *Options) GetQuery() string {
+	querys := p.GetStrings(URIQuery)
 	return strings.Join(querys, "&")
 }
