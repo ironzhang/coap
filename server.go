@@ -20,7 +20,7 @@ type Server struct {
 	sessions gctable.Table
 }
 
-// ListenAndServe 监听在指定地址并提供COAP服务
+// ListenAndServe 在指定地址端口监听并提供COAP服务.
 func (s *Server) ListenAndServe(network, address string) error {
 	addr, err := net.ResolveUDPAddr(network, address)
 	if err != nil {
@@ -33,7 +33,7 @@ func (s *Server) ListenAndServe(network, address string) error {
 	return s.Serve(l)
 }
 
-// Serve 提供COAP服务
+// Serve 提供COAP服务.
 func (s *Server) Serve(l net.PacketConn) error {
 	buf := make([]byte, 1500)
 	for {
@@ -54,7 +54,7 @@ func (s *Server) Serve(l net.PacketConn) error {
 	}
 }
 
-// SendRequest 发送COAP请求
+// SendRequest 发送COAP请求.
 func (s *Server) SendRequest(req *Request) (*Response, error) {
 	addr, err := net.ResolveUDPAddr("udp", req.URL.Host)
 	if err != nil {
@@ -67,7 +67,7 @@ func (s *Server) SendRequest(req *Request) (*Response, error) {
 	return sess.postRequestAndWaitResponse(req)
 }
 
-// Observe 订阅
+// Observe 订阅.
 func (s *Server) Observe(token, urlstr string) error {
 	req, err := NewRequest(true, GET, urlstr, nil)
 	if err != nil {
@@ -79,7 +79,7 @@ func (s *Server) Observe(token, urlstr string) error {
 	return s.postRequestAndWaitAck(req)
 }
 
-// CancelObserve 取消订阅
+// CancelObserve 取消订阅.
 func (s *Server) CancelObserve(urlstr string) error {
 	req, err := NewRequest(true, GET, urlstr, nil)
 	if err != nil {

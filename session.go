@@ -29,23 +29,23 @@ type Handler interface {
 	ServeCOAP(ResponseWriter, *Request)
 }
 
-// Observer 观察者
+// Observer 观察者接口
 type Observer interface {
 	ServeObserve(*Response)
 }
 
 // ResponseWriter 用于构造COAP响应
 type ResponseWriter interface {
-	// Ack 回复空ACK，服务器无法立即响应，可先调用该方法返回一个空的ACK
+	// Ack 回复空ACK, 服务器无法立即响应的情况下, 可先调用该方法返回一个空的ACK
 	Ack(Code)
 
-	// SetConfirmable 设置响应为可靠消息，作为单独响应时生效
+	// SetConfirmable 设置响应为可靠消息, 作为单独响应或处理非可靠消息时生效
 	SetConfirmable()
 
 	// Options 返回Options
 	Options() Options
 
-	// WriteCode 设置响应状态码，默认为Content
+	// WriteCode 写入响应状态码, 默认为Content
 	WriteCode(Code)
 
 	// Write 写入payload

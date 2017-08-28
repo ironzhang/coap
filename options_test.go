@@ -174,6 +174,29 @@ func TestOptionsGet(t *testing.T) {
 	}
 }
 
+func TestOptionsGetValues(t *testing.T) {
+	options := Options{
+		{ID: 0, Value: 0},
+		{ID: 1, Value: 1},
+		{ID: 2, Value: 0},
+		{ID: 2, Value: 1},
+	}
+	tests := []struct {
+		id     uint16
+		values []interface{}
+	}{
+		{id: 0, values: []interface{}{0}},
+		{id: 1, values: []interface{}{1}},
+		{id: 2, values: []interface{}{0, 1}},
+		{id: 3, values: nil},
+	}
+	for i, tt := range tests {
+		if got, want := options.GetValues(tt.id), tt.values; !reflect.DeepEqual(got, want) {
+			t.Errorf("case%d: %v != %v", i, got, want)
+		}
+	}
+}
+
 func TestOptionsContain(t *testing.T) {
 	options := Options{
 		{ID: 0, Value: 0},

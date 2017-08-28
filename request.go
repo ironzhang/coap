@@ -9,20 +9,37 @@ import (
 	"time"
 )
 
+// Request COAP请求
 type Request struct {
+	// 是否为可靠消息
 	Confirmable bool
-	Method      Code
-	Options     Options
-	URL         *url.URL
-	Token       string
-	Payload     []byte
-	RemoteAddr  net.Addr
-	Timeout     time.Duration
+
+	// 请求方法
+	Method Code
+
+	// COAP选项
+	Options Options
+
+	// 目标url
+	URL *url.URL
+
+	// 消息令牌, 消息接收端使用, 发送端不应该使用该字段
+	Token string
+
+	// 消息负载
+	Payload []byte
+
+	// 远端地址, 消息接收端使用, 发送段不应该使用该字段
+	RemoteAddr net.Addr
+
+	// 请求超时时间, 消息发送端使用
+	Timeout time.Duration
 
 	// 若设置该字段，发送请求时使用Request中的Token字段，否则消息的token自动生成
 	useToken bool
 }
 
+// NewRequest 构造COAP请求.
 func NewRequest(confirmable bool, method Code, urlstr string, payload []byte) (*Request, error) {
 	u, err := url.Parse(urlstr)
 	if err != nil {
