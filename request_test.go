@@ -9,7 +9,7 @@ func TestSplitHostPort(t *testing.T) {
 	tests := []struct {
 		hostport string
 		host     string
-		port     uint16
+		port     uint32
 	}{
 		{"localhost", "localhost", 0},
 		{"localhost:8000", "localhost", 8000},
@@ -54,7 +54,7 @@ func TestNewRequest(t *testing.T) {
 			method:      POST,
 			urlstr:      "coap://127.0.0.1:8000/a/b",
 			options: Options{
-				{URIPort, uint16(8000)},
+				{URIPort, uint32(8000)},
 				{URIPath, "a"},
 				{URIPath, "b"},
 			},

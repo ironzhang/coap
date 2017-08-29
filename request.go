@@ -81,7 +81,7 @@ func NewRequest(confirmable bool, method Code, urlstr string, payload []byte) (*
 	return r, nil
 }
 
-func splitHostPort(hostport string) (string, uint16, error) {
+func splitHostPort(hostport string) (string, uint32, error) {
 	if !strings.Contains(hostport, ":") {
 		return hostport, 0, nil
 	}
@@ -96,5 +96,5 @@ func splitHostPort(hostport string) (string, uint16, error) {
 	if err != nil {
 		return "", 0, err
 	}
-	return host, uint16(n), nil
+	return host, uint32(n), nil
 }
