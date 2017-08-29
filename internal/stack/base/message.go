@@ -95,6 +95,7 @@ const (
 	Valid                 = 67
 	Changed               = 68
 	Content               = 69
+	Continue              = 95
 	BadRequest            = 128
 	Unauthorized          = 129
 	BadOption             = 130
