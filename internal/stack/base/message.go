@@ -155,27 +155,51 @@ func CodeName(c uint8) string {
 
 // option id
 /*
-   +-----+----+---+---+---+----------------+--------+--------+---------+
-   | No. | C  | U | N | R | Name           | Format | Length | Default |
-   +-----+----+---+---+---+----------------+--------+--------+---------+
-   |   1 | x  |   |   | x | If-Match       | opaque | 0-8    | (none)  |
-   |   3 | x  | x | - |   | Uri-Host       | string | 1-255  | (see    |
-   |     |    |   |   |   |                |        |        | below)  |
-   |   4 |    |   |   | x | ETag           | opaque | 1-8    | (none)  |
-   |   5 | x  |   |   |   | If-None-Match  | empty  | 0      | (none)  |
-   |   7 | x  | x | - |   | Uri-Port       | uint   | 0-2    | (see    |
-   |     |    |   |   |   |                |        |        | below)  |
-   |   8 |    |   |   | x | Location-Path  | string | 0-255  | (none)  |
-   |  11 | x  | x | - | x | Uri-Path       | string | 0-255  | (none)  |
-   |  12 |    |   |   |   | Content-Format | uint   | 0-2    | (none)  |
-   |  14 |    | x | - |   | Max-Age        | uint   | 0-4    | 60      |
-   |  15 | x  | x | - | x | Uri-Query      | string | 0-255  | (none)  |
-   |  17 | x  |   |   |   | Accept         | uint   | 0-2    | (none)  |
-   |  20 |    |   |   | x | Location-Query | string | 0-255  | (none)  |
-   |  35 | x  | x | - |   | Proxy-Uri      | string | 1-1034 | (none)  |
-   |  39 | x  | x | - |   | Proxy-Scheme   | string | 1-255  | (none)  |
-   |  60 |    |   | x |   | Size1          | uint   | 0-4    | (none)  |
-   +-----+----+---+---+---+----------------+--------+--------+---------+
+	+-----+----+---+---+---+----------------+--------+--------+---------+
+	| No. | C  | U | N | R | Name           | Format | Length | Default |
+	+-----+----+---+---+---+----------------+--------+--------+---------+
+	|   1 | x  |   |   | x | If-Match       | opaque | 0-8    | (none)  |
+	|   3 | x  | x | - |   | Uri-Host       | string | 1-255  | (see    |
+	|     |    |   |   |   |                |        |        | below)  |
+	|   4 |    |   |   | x | ETag           | opaque | 1-8    | (none)  |
+	|   5 | x  |   |   |   | If-None-Match  | empty  | 0      | (none)  |
+	|   7 | x  | x | - |   | Uri-Port       | uint   | 0-2    | (see    |
+	|     |    |   |   |   |                |        |        | below)  |
+	|   8 |    |   |   | x | Location-Path  | string | 0-255  | (none)  |
+	|  11 | x  | x | - | x | Uri-Path       | string | 0-255  | (none)  |
+	|  12 |    |   |   |   | Content-Format | uint   | 0-2    | (none)  |
+	|  14 |    | x | - |   | Max-Age        | uint   | 0-4    | 60      |
+	|  15 | x  | x | - | x | Uri-Query      | string | 0-255  | (none)  |
+	|  17 | x  |   |   |   | Accept         | uint   | 0-2    | (none)  |
+	|  20 |    |   |   | x | Location-Query | string | 0-255  | (none)  |
+	|  35 | x  | x | - |   | Proxy-Uri      | string | 1-1034 | (none)  |
+	|  39 | x  | x | - |   | Proxy-Scheme   | string | 1-255  | (none)  |
+	|  60 |    |   | x |   | Size1          | uint   | 0-4    | (none)  |
+	+-----+----+---+---+---+----------------+--------+--------+---------+
+
+	+-----+---+---+---+---+---------+--------+--------+---------+
+	| No. | C | U | N | R | Name    | Format | Length | Default |
+	+-----+---+---+---+---+---------+--------+--------+---------+
+	|   6 |   | x | - |   | Observe | uint   | 0-3 B  | (none)  |
+	+-----+---+---+---+---+---------+--------+--------+---------+
+
+	+-----+---+---+---+---+--------+--------+--------+---------+
+	| No. | C | U | N | R | Name   | Format | Length | Default |
+	+-----+---+---+---+---+--------+--------+--------+---------+
+	|  23 | C | U | - | - | Block2 | uint   |    0-3 | (none)  |
+	|     |   |   |   |   |        |        |        |         |
+	|  27 | C | U | - | - | Block1 | uint   |    0-3 | (none)  |
+	+-----+---+---+---+---+--------+--------+--------+---------+
+
+	+-----+---+---+---+---+-------+--------+--------+---------+
+	| No. | C | U | N | R | Name  | Format | Length | Default |
+	+-----+---+---+---+---+-------+--------+--------+---------+
+	|  60 |   |   | x |   | Size1 | uint   |    0-4 | (none)  |
+	|     |   |   |   |   |       |        |        |         |
+	|  28 |   |   | x |   | Size2 | uint   |    0-4 | (none)  |
+	+-----+---+---+---+---+-------+--------+--------+---------+
+
+		C=Critical, U=Unsafe, N=No-Cache-Key, R=Repeatable
 */
 const (
 	IfMatch       = 1
@@ -191,6 +215,9 @@ const (
 	URIQuery      = 15
 	Accept        = 17
 	LocationQuery = 20
+	Block2        = 23
+	Block1        = 27
+	Size2         = 28
 	ProxyURI      = 35
 	ProxyScheme   = 39
 	Size1         = 60
@@ -225,6 +252,9 @@ var optionDefs = map[uint16]optionDef{
 	URIQuery:      optionDef{name: "Uri-Query", format: StringValueFormat, minLen: 0, maxLen: 255},
 	Accept:        optionDef{name: "Accept", format: UintValueFormat, minLen: 0, maxLen: 2},
 	LocationQuery: optionDef{name: "Location-Query", format: StringValueFormat, minLen: 0, maxLen: 255},
+	Block2:        optionDef{name: "Block2", format: UintValueFormat, minLen: 0, maxLen: 3},
+	Block1:        optionDef{name: "Block1", format: UintValueFormat, minLen: 0, maxLen: 3},
+	Size2:         optionDef{name: "Size2", format: UintValueFormat, minLen: 0, maxLen: 4},
 	ProxyURI:      optionDef{name: "Proxy-Uri", format: StringValueFormat, minLen: 1, maxLen: 1034},
 	ProxyScheme:   optionDef{name: "Proxy-Scheme", format: StringValueFormat, minLen: 1, maxLen: 255},
 	Size1:         optionDef{name: "Size1", format: UintValueFormat, minLen: 0, maxLen: 4},

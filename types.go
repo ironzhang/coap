@@ -57,6 +57,9 @@ const (
 	URIQuery      = base.URIQuery
 	Accept        = base.Accept
 	LocationQuery = base.LocationQuery
+	Block2        = base.Block2
+	Block1        = base.Block1
+	Size2         = base.Size2
 	ProxyURI      = base.ProxyURI
 	ProxyScheme   = base.ProxyScheme
 	Size1         = base.Size1
