@@ -48,15 +48,15 @@ func TestResponseWaiterReturnErr(t *testing.T) {
 
 func TestResponseWaiterTimeout(t *testing.T) {
 	w := newResponseWaiter()
-	w.timeout = 2 * time.Second
+	w.timeout = 200 * time.Millisecond
 	if got, want := w.Timeout(), false; got != want {
 		t.Errorf("first: %v != %v", got, want)
 	}
-	time.Sleep(time.Second)
+	time.Sleep(100 * time.Millisecond)
 	if got, want := w.Timeout(), false; got != want {
 		t.Errorf("second: %v != %v", got, want)
 	}
-	time.Sleep(time.Second)
+	time.Sleep(100 * time.Millisecond)
 	if got, want := w.Timeout(), true; got != want {
 		t.Errorf("third: %v != %v", got, want)
 	}
