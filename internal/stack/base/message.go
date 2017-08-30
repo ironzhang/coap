@@ -306,6 +306,24 @@ func (m Message) visToken() string {
 	return buf.String()
 }
 
+func (m Message) GetOption(id uint16) interface{} {
+	for _, o := range m.Options {
+		if o.ID == id {
+			return o.Value
+		}
+	}
+	return nil
+}
+
+func (m Message) GetOptions(id uint16) (values []interface{}) {
+	for _, o := range m.Options {
+		if o.ID == id {
+			values = append(values, o.Value)
+		}
+	}
+	return values
+}
+
 func (m *Message) Marshal() ([]byte, error) {
 	var err error
 	var buf bytes.Buffer

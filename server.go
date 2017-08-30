@@ -1,6 +1,7 @@
 package coap
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -72,7 +73,12 @@ func (s *Server) SendRequest(req *Request) (*Response, error) {
 }
 
 // Observe 订阅.
+//
+// token长度不能大于8个字节.
 func (s *Server) Observe(token, urlstr string) error {
+	if len(token) > 8 {
+		return errors.New("invalid token")
+	}
 	req, err := NewRequest(true, GET, urlstr, nil)
 	if err != nil {
 		return err

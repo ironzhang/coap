@@ -170,6 +170,20 @@ func TestMessageString(t *testing.T) {
 	}
 }
 
+func TestMessageGetOption(t *testing.T) {
+	options := []Option{
+		{1, "1"},
+		{2, "2"},
+		{3, 3},
+	}
+	m := Message{Options: options}
+	for _, o := range options {
+		if got, want := m.GetOption(o.ID), o.Value; !reflect.DeepEqual(got, want) {
+			t.Errorf("id=%d: %#v != %#v", o.ID, got, want)
+		}
+	}
+}
+
 func TestMessage(t *testing.T) {
 	tests := []struct {
 		m Message
