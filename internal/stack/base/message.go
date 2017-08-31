@@ -306,7 +306,26 @@ func (m Message) visToken() string {
 	return buf.String()
 }
 
-func (m Message) GetOption(id uint16) interface{} {
+func (m *Message) AddOption(id uint16, v interface{}) {
+	m.Options = append(m.Options, Option{ID: id, Value: v})
+}
+
+func (m *Message) DelOption(id uint16) {
+	options := make([]Option, 0, len(m.Options))
+	for _, o := range m.Options {
+		if o.ID != id {
+			options = append(options, o)
+		}
+	}
+	m.Options = options
+}
+
+func (m *Message) SetOption(id uint16, v interface{}) {
+	m.DelOption(id)
+	m.AddOption(id, v)
+}
+
+func (m *Message) GetOption(id uint16) interface{} {
 	for _, o := range m.Options {
 		if o.ID == id {
 			return o.Value
@@ -315,7 +334,7 @@ func (m Message) GetOption(id uint16) interface{} {
 	return nil
 }
 
-func (m Message) GetOptions(id uint16) (values []interface{}) {
+func (m *Message) GetOptions(id uint16) (values []interface{}) {
 	for _, o := range m.Options {
 		if o.ID == id {
 			values = append(values, o.Value)
