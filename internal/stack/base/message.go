@@ -82,64 +82,67 @@ func TypeName(t uint8) string {
 
 // Request Codes
 const (
-	GET    = 1
-	POST   = 2
-	PUT    = 3
-	DELETE = 4
+	GET    = 0<<5 | 1
+	POST   = 0<<5 | 2
+	PUT    = 0<<5 | 3
+	DELETE = 0<<5 | 4
 )
 
 // Responses Codes
 const (
-	Created               = 65
-	Deleted               = 66
-	Valid                 = 67
-	Changed               = 68
-	Content               = 69
-	Continue              = 95
-	BadRequest            = 128
-	Unauthorized          = 129
-	BadOption             = 130
-	Forbidden             = 131
-	NotFound              = 132
-	MethodNotAllowed      = 133
-	NotAcceptable         = 134
-	PreconditionFailed    = 140
-	RequestEntityTooLarge = 141
-	UnsupportedMediaType  = 143
-	InternalServerError   = 160
-	NotImplemented        = 161
-	BadGateway            = 162
-	ServiceUnavailable    = 163
-	GatewayTimeout        = 164
-	ProxyingNotSupported  = 165
+	Created  = 2<<5 | 1
+	Deleted  = 2<<5 | 2
+	Valid    = 2<<5 | 3
+	Changed  = 2<<5 | 4
+	Content  = 2<<5 | 5
+	Continue = 2<<5 | 31
+
+	BadRequest               = 4<<5 | 0
+	Unauthorized             = 4<<5 | 1
+	BadOption                = 4<<5 | 2
+	Forbidden                = 4<<5 | 3
+	NotFound                 = 4<<5 | 4
+	MethodNotAllowed         = 4<<5 | 5
+	NotAcceptable            = 4<<5 | 6
+	RequestEntityIncomplete  = 4<<5 | 8
+	PreconditionFailed       = 4<<5 | 12
+	RequestEntityTooLarge    = 4<<5 | 13
+	UnsupportedContentFormat = 4<<5 | 15
+
+	InternalServerError  = 5<<5 | 0
+	NotImplemented       = 5<<5 | 1
+	BadGateway           = 5<<5 | 2
+	ServiceUnavailable   = 5<<5 | 3
+	GatewayTimeout       = 5<<5 | 4
+	ProxyingNotSupported = 5<<5 | 5
 )
 
 var codeNames = [256]string{
-	GET:                   "GET",
-	POST:                  "POST",
-	PUT:                   "PUT",
-	DELETE:                "DELETE",
-	Created:               "Created",
-	Deleted:               "Deleted",
-	Valid:                 "Valid",
-	Changed:               "Changed",
-	Content:               "Content",
-	BadRequest:            "BadRequest",
-	Unauthorized:          "Unauthorized",
-	BadOption:             "BadOption",
-	Forbidden:             "Forbidden",
-	NotFound:              "NotFound",
-	MethodNotAllowed:      "MethodNotAllowed",
-	NotAcceptable:         "NotAcceptable",
-	PreconditionFailed:    "PreconditionFailed",
-	RequestEntityTooLarge: "RequestEntityTooLarge",
-	UnsupportedMediaType:  "UnsupportedMediaType",
-	InternalServerError:   "InternalServerError",
-	NotImplemented:        "NotImplemented",
-	BadGateway:            "BadGateway",
-	ServiceUnavailable:    "ServiceUnavailable",
-	GatewayTimeout:        "GatewayTimeout",
-	ProxyingNotSupported:  "ProxyingNotSupported",
+	GET:                      "GET",
+	POST:                     "POST",
+	PUT:                      "PUT",
+	DELETE:                   "DELETE",
+	Created:                  "Created",
+	Deleted:                  "Deleted",
+	Valid:                    "Valid",
+	Changed:                  "Changed",
+	Content:                  "Content",
+	BadRequest:               "BadRequest",
+	Unauthorized:             "Unauthorized",
+	BadOption:                "BadOption",
+	Forbidden:                "Forbidden",
+	NotFound:                 "NotFound",
+	MethodNotAllowed:         "MethodNotAllowed",
+	NotAcceptable:            "NotAcceptable",
+	PreconditionFailed:       "PreconditionFailed",
+	RequestEntityTooLarge:    "RequestEntityTooLarge",
+	UnsupportedContentFormat: "UnsupportedContentFormat",
+	InternalServerError:      "InternalServerError",
+	NotImplemented:           "NotImplemented",
+	BadGateway:               "BadGateway",
+	ServiceUnavailable:       "ServiceUnavailable",
+	GatewayTimeout:           "GatewayTimeout",
+	ProxyingNotSupported:     "ProxyingNotSupported",
 }
 
 func init() {

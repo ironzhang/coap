@@ -6,6 +6,48 @@ import (
 	"testing"
 )
 
+func TestCode(t *testing.T) {
+	tests := []struct {
+		code uint8
+		want uint8
+	}{
+		{code: GET, want: 1},
+		{code: POST, want: 2},
+		{code: PUT, want: 3},
+		{code: DELETE, want: 4},
+
+		{code: Created, want: 65},
+		{code: Deleted, want: 66},
+		{code: Valid, want: 67},
+		{code: Changed, want: 68},
+		{code: Content, want: 69},
+		{code: Continue, want: 95},
+
+		{code: BadRequest, want: 128},
+		{code: Unauthorized, want: 129},
+		{code: BadOption, want: 130},
+		{code: Forbidden, want: 131},
+		{code: NotFound, want: 132},
+		{code: MethodNotAllowed, want: 133},
+		{code: NotAcceptable, want: 134},
+		{code: PreconditionFailed, want: 140},
+		{code: RequestEntityTooLarge, want: 141},
+		{code: UnsupportedContentFormat, want: 143},
+
+		{code: InternalServerError, want: 160},
+		{code: NotImplemented, want: 161},
+		{code: BadGateway, want: 162},
+		{code: ServiceUnavailable, want: 163},
+		{code: GatewayTimeout, want: 164},
+		{code: ProxyingNotSupported, want: 165},
+	}
+	for _, tt := range tests {
+		if tt.code != tt.want {
+			t.Errorf("%s: %d != %d", CodeName(tt.code), tt.code, tt.want)
+		}
+	}
+}
+
 func TestEncodeUintVariant(t *testing.T) {
 	tests := []struct {
 		val uint32

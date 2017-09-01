@@ -19,27 +19,31 @@ const (
 
 // Responses Codes
 const (
-	Created               Code = base.Created
-	Deleted               Code = base.Deleted
-	Valid                 Code = base.Valid
-	Changed               Code = base.Changed
-	Content               Code = base.Content
-	BadRequest            Code = base.BadRequest
-	Unauthorized          Code = base.Unauthorized
-	BadOption             Code = base.BadOption
-	Forbidden             Code = base.Forbidden
-	NotFound              Code = base.NotFound
-	MethodNotAllowed      Code = base.MethodNotAllowed
-	NotAcceptable         Code = base.NotAcceptable
-	PreconditionFailed    Code = base.PreconditionFailed
-	RequestEntityTooLarge Code = base.RequestEntityTooLarge
-	UnsupportedMediaType  Code = base.UnsupportedMediaType
-	InternalServerError   Code = base.InternalServerError
-	NotImplemented        Code = base.NotImplemented
-	BadGateway            Code = base.BadGateway
-	ServiceUnavailable    Code = base.ServiceUnavailable
-	GatewayTimeout        Code = base.GatewayTimeout
-	ProxyingNotSupported  Code = base.ProxyingNotSupported
+	Created  Code = base.Created
+	Deleted  Code = base.Deleted
+	Valid    Code = base.Valid
+	Changed  Code = base.Changed
+	Content  Code = base.Content
+	Continue Code = base.Continue
+
+	BadRequest               Code = base.BadRequest
+	Unauthorized             Code = base.Unauthorized
+	BadOption                Code = base.BadOption
+	Forbidden                Code = base.Forbidden
+	NotFound                 Code = base.NotFound
+	MethodNotAllowed         Code = base.MethodNotAllowed
+	NotAcceptable            Code = base.NotAcceptable
+	RequestEntityIncomplete  Code = base.RequestEntityIncomplete
+	PreconditionFailed       Code = base.PreconditionFailed
+	RequestEntityTooLarge    Code = base.RequestEntityTooLarge
+	UnsupportedContentFormat Code = base.UnsupportedContentFormat
+
+	InternalServerError  Code = base.InternalServerError
+	NotImplemented       Code = base.NotImplemented
+	BadGateway           Code = base.BadGateway
+	ServiceUnavailable   Code = base.ServiceUnavailable
+	GatewayTimeout       Code = base.GatewayTimeout
+	ProxyingNotSupported Code = base.ProxyingNotSupported
 )
 
 // Option IDs
