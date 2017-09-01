@@ -2,6 +2,7 @@ package stack
 
 import (
 	"github.com/ironzhang/coap/internal/stack/base"
+	"github.com/ironzhang/coap/internal/stack/blockwise/block1"
 	"github.com/ironzhang/coap/internal/stack/deduplication"
 	"github.com/ironzhang/coap/internal/stack/reliability"
 )
@@ -13,12 +14,13 @@ type Stack struct {
 	layers []base.Layer
 }
 
-func (s *Stack) Init(recver base.Recver, sender base.Sender, ackTimeout func(base.Message)) *Stack {
+func (s *Stack) Init(recver base.Recver, sender base.Sender, ackTimeout func(base.Message), genMessageID func() uint16) *Stack {
 	s.recver, s.sender, s.layers = makeLayers(
 		recver,
 		sender,
 		deduplication.NewLayer(),
 		reliability.NewLayer(ackTimeout),
+		block1.NewLayer(genMessageID),
 	)
 	return s
 }

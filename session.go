@@ -138,7 +138,7 @@ func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr) *ses
 	s.servingc = make(chan func(), 8)
 	s.runningc = make(chan func(), 8)
 
-	s.stack.Init(s, s, s.ackTimeout)
+	s.stack.Init(s, s, s.ackTimeout, s.genMessageID)
 	s.ackWaiters = make(map[uint16]*ackWaiter)
 	s.respWaiters = make(map[string]*responseWaiter)
 
