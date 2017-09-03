@@ -32,7 +32,7 @@ func (l *Layer) OnAckTimeout(m base.Message) {
 
 func (l *Layer) Recv(m base.Message) error {
 	switch {
-	case isConRequest(m):
+	case m.Type == base.CON:
 		return l.receiver.recv(m)
 	case m.Type == base.ACK:
 		return l.transmitter.recv(m)
@@ -43,7 +43,7 @@ func (l *Layer) Recv(m base.Message) error {
 
 func (l *Layer) Send(m base.Message) error {
 	switch {
-	case isConRequest(m):
+	case m.Type == base.CON:
 		return l.transmitter.send(m)
 	case m.Type == base.ACK:
 		return l.receiver.send(m)
