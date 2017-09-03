@@ -8,8 +8,8 @@ var _ base.Layer = &Layer{}
 
 type Layer struct {
 	base.BaseLayer
-	receiver    receiver
-	transmitter transmitter
+	client client
+	server server
 }
 
 func NewLayer(generator MessageIDGenerator) *Layer {
@@ -18,8 +18,8 @@ func NewLayer(generator MessageIDGenerator) *Layer {
 
 func (l *Layer) init(generator MessageIDGenerator) *Layer {
 	l.BaseLayer.Name = "block1"
-	l.receiver.init(&l.BaseLayer)
-	l.transmitter.init(&l.BaseLayer, generator, MaxBlockSize)
+	l.client.init(&l.BaseLayer)
+	l.server.init(&l.BaseLayer, generator, MaxBlockSize)
 	return l
 }
 
@@ -27,15 +27,15 @@ func (l *Layer) Update() {
 }
 
 func (l *Layer) OnAckTimeout(m base.Message) {
-	l.transmitter.onAckTimeout(m)
+	l.server.onAckTimeout(m)
 }
 
 func (l *Layer) Recv(m base.Message) error {
 	switch {
 	case m.Type == base.CON:
-		return l.receiver.recv(m)
+		return l.client.recv(m)
 	case m.Type == base.ACK:
-		return l.transmitter.recv(m)
+		return l.server.recv(m)
 	default:
 		return l.BaseLayer.Recv(m)
 	}
@@ -44,9 +44,9 @@ func (l *Layer) Recv(m base.Message) error {
 func (l *Layer) Send(m base.Message) error {
 	switch {
 	case m.Type == base.CON:
-		return l.transmitter.send(m)
+		return l.server.send(m)
 	case m.Type == base.ACK:
-		return l.receiver.send(m)
+		return l.client.send(m)
 	default:
 		return l.BaseLayer.Send(m)
 	}
