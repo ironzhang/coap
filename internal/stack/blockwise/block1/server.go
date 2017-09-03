@@ -5,20 +5,19 @@ import (
 	"time"
 
 	"github.com/ironzhang/coap/internal/stack/base"
-	"github.com/ironzhang/coap/internal/stack/blockwise/block"
 )
 
 type MessageIDGenerator func() uint16
 
 type server struct {
 	baseLayer *base.BaseLayer
-	generator MessageIDGenerator
+	generator func() uint16
 	blockSize uint32
 
 	busy      bool
 	timestamp time.Time
 	message   base.Message
-	reader    *block.Reader
+	buffer    buffer
 
 	blockMessageID uint16
 }
@@ -40,7 +39,7 @@ func (s *server) send(m base.Message) error {
 	s.busy = true
 	s.timestamp = time.Now()
 	s.message = m
-	s.reader = block.NewReader(m.Payload)
+	s.buffer.Reset(m.Payload)
 	return s.sendBlockMessage(m.MessageID, 0, s.blockSize)
 }
 
@@ -51,7 +50,7 @@ func (s *server) recv(m base.Message) error {
 	if s.blockMessageID != m.MessageID {
 		return errors.New("unexpect block message id")
 	}
-	block1Opt, ok := block.ParseBlock1Option(m)
+	block1Opt, ok := base.ParseBlock1Option(m)
 	if !ok {
 		return errors.New("no block1 option")
 	}
@@ -71,7 +70,7 @@ func (s *server) onAckTimeout(m base.Message) {
 }
 
 func (s *server) sendBlockMessage(messageID uint16, seq, size uint32) error {
-	block1Opt, payload, err := s.reader.Read(seq, size)
+	block1Opt, payload, err := s.buffer.Read(seq, size)
 	if err != nil {
 		return err
 	}

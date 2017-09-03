@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ironzhang/coap/internal/stack/base"
-	"github.com/ironzhang/coap/internal/stack/blockwise/block"
 )
 
 type server struct {
@@ -41,7 +40,7 @@ func (t *server) recv(m base.Message) error {
 	if !t.isBusy() {
 		return t.baseLayer.Recv(m)
 	}
-	opt, ok := block.ParseBlock2Option(m)
+	opt, ok := base.ParseBlock2Option(m)
 	if !ok {
 		return errors.New("no block2 option")
 	}

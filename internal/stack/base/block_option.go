@@ -1,43 +1,41 @@
-package block
-
-import "github.com/ironzhang/coap/internal/stack/base"
+package base
 
 const (
 	szxMask  = 0x07
 	moreMask = 1 << 3
 )
 
-func ParseBlock1Option(m base.Message) (Option, bool) {
-	return getBlockOption(m, base.Block1)
+func ParseBlock1Option(m Message) (BlockOption, bool) {
+	return getBlockOption(m, Block1)
 }
 
-func ParseBlock2Option(m base.Message) (Option, bool) {
-	return getBlockOption(m, base.Block2)
+func ParseBlock2Option(m Message) (BlockOption, bool) {
+	return getBlockOption(m, Block2)
 }
 
-func getBlockOption(m base.Message, id uint16) (Option, bool) {
+func getBlockOption(m Message, id uint16) (BlockOption, bool) {
 	v := m.GetOption(id)
 	if v == nil {
-		return Option{}, false
+		return BlockOption{}, false
 	}
-	return ParseOption(v.(uint32)), true
+	return ParseBlockOption(v.(uint32)), true
 }
 
-func ParseOption(value uint32) Option {
-	return Option{
+func ParseBlockOption(value uint32) BlockOption {
+	return BlockOption{
 		Num:  value >> 4,
 		More: (value & moreMask) == moreMask,
 		Size: exponentToBlockSize(value & szxMask),
 	}
 }
 
-type Option struct {
+type BlockOption struct {
 	Num  uint32
 	More bool
 	Size uint32
 }
 
-func (o Option) Value() uint32 {
+func (o BlockOption) Value() uint32 {
 	value := o.Num << 4
 	if o.More {
 		value |= moreMask

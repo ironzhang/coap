@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/ironzhang/coap/internal/stack/base"
-	"github.com/ironzhang/coap/internal/stack/blockwise/block"
 )
 
 type client struct {
@@ -20,7 +19,7 @@ func (c *client) init(baseLayer *base.BaseLayer) {
 }
 
 func (c *client) recv(m base.Message) error {
-	block1Opt, ok := block.ParseBlock1Option(m)
+	block1Opt, ok := base.ParseBlock1Option(m)
 	if !ok {
 		return c.baseLayer.Recv(m)
 	}

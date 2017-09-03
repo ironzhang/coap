@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ironzhang/coap/internal/stack/base"
-	"github.com/ironzhang/coap/internal/stack/blockwise/block"
 )
 
 type client struct {
@@ -26,7 +25,7 @@ func (c *client) init(baseLayer *base.BaseLayer, generator func() uint16) {
 }
 
 func (c *client) recv(m base.Message) error {
-	opt, ok := block.ParseBlock2Option(m)
+	opt, ok := base.ParseBlock2Option(m)
 	if !ok {
 		return c.baseLayer.Recv(m)
 	}
@@ -58,7 +57,7 @@ func (c *client) send(m base.Message) error {
 
 func (c *client) getNextBlock(num, size uint32) error {
 	c.blockMessageID = c.generator()
-	o := block.Option{
+	o := base.BlockOption{
 		Num:  num,
 		Size: size,
 	}

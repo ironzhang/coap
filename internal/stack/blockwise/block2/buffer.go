@@ -4,7 +4,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/ironzhang/coap/internal/stack/blockwise/block"
+	"github.com/ironzhang/coap/internal/stack/base"
 )
 
 type buffer struct {
@@ -18,12 +18,12 @@ func (b *buffer) Reset(buf []byte) *buffer {
 	return b
 }
 
-func (b *buffer) Read(seq uint32, size uint32) (block.Option, []byte, error) {
+func (b *buffer) Read(seq uint32, size uint32) (base.BlockOption, []byte, error) {
 	if b.off >= uint32(len(b.buf)) {
-		return block.Option{}, nil, io.EOF
+		return base.BlockOption{}, nil, io.EOF
 	}
 	if seq*size != b.off {
-		return block.Option{}, nil, errors.New("sequence confusion")
+		return base.BlockOption{}, nil, errors.New("sequence confusion")
 	}
 
 	start := b.off
@@ -34,7 +34,7 @@ func (b *buffer) Read(seq uint32, size uint32) (block.Option, []byte, error) {
 		b.off += remaining
 	}
 
-	opt := block.Option{
+	opt := base.BlockOption{
 		Num:  seq,
 		More: b.off < uint32(len(b.buf)),
 		Size: size,
