@@ -3,6 +3,7 @@ package stack
 import (
 	"github.com/ironzhang/coap/internal/stack/base"
 	"github.com/ironzhang/coap/internal/stack/blockwise/block1"
+	"github.com/ironzhang/coap/internal/stack/blockwise/block2"
 	"github.com/ironzhang/coap/internal/stack/deduplication"
 	"github.com/ironzhang/coap/internal/stack/reliability"
 )
@@ -21,6 +22,7 @@ func (s *Stack) Init(recver base.Recver, sender base.Sender, genMessageID func()
 		deduplication.NewLayer(),
 		reliability.NewLayer(),
 		block1.NewLayer(genMessageID),
+		block2.NewLayer(genMessageID),
 	)
 	return s
 }
