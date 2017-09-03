@@ -138,7 +138,7 @@ func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr) *ses
 	s.servingc = make(chan func(), 8)
 	s.runningc = make(chan func(), 8)
 
-	s.stack.Init(s, s, s.ackTimeout, s.genMessageID)
+	s.stack.Init(s, s, s.genMessageID)
 	s.ackWaiters = make(map[uint16]*ackWaiter)
 	s.respWaiters = make(map[string]*responseWaiter)
 
@@ -201,6 +201,13 @@ func (s *session) ExecuteGC() {
 func (s *session) Close() error {
 	close(s.donec)
 	return nil
+}
+
+func (s *session) OnAckTimeout(m base.Message) {
+	s.finishAckWait(m, ErrTimeout)
+	if len(m.Token) > 0 {
+		s.finishResponseWait(m, ErrTimeout)
+	}
 }
 
 func (s *session) Recv(m base.Message) error {
@@ -354,13 +361,6 @@ func (s *session) Send(m base.Message) error {
 	}
 	_, err = s.writer.Write(data)
 	return err
-}
-
-func (s *session) ackTimeout(m base.Message) {
-	s.finishAckWait(m, ErrTimeout)
-	if len(m.Token) > 0 {
-		s.finishResponseWait(m, ErrTimeout)
-	}
 }
 
 func (s *session) recvData(data []byte) {

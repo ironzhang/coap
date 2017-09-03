@@ -12,7 +12,7 @@ func TestRandAckTimeout(t *testing.T) {
 	seed := time.Now().Unix()
 	rand.Seed(seed)
 
-	l := NewLayer(nil)
+	l := NewLayer()
 	min := l.AckTimeout
 	max := time.Duration(float64(l.AckTimeout) * l.AckRandomFactor)
 	for i := 0; i < 10000; i++ {
@@ -27,7 +27,7 @@ func TestRandAckTimeout(t *testing.T) {
 func TestRecvAck(t *testing.T) {
 	r := base.CountRecver{}
 	s := base.CountSender{}
-	l := NewLayer(nil)
+	l := NewLayer()
 	l.AckTimeout = 10 * time.Millisecond
 	l.BaseLayer.Recver = &r
 	l.BaseLayer.Sender = &s
@@ -48,19 +48,10 @@ func TestRecvAck(t *testing.T) {
 	}
 }
 
-type Timeout struct {
-	timeout bool
-}
-
-func (t *Timeout) Timeout(m base.Message) {
-	t.timeout = true
-}
-
 func TestAckTimeout(t *testing.T) {
-	var timeout Timeout
 	r := base.CountRecver{}
 	s := base.CountSender{}
-	l := NewLayer(timeout.Timeout)
+	l := NewLayer()
 	l.AckTimeout = 10 * time.Millisecond
 	l.BaseLayer.Recver = &r
 	l.BaseLayer.Sender = &s
@@ -69,7 +60,7 @@ func TestAckTimeout(t *testing.T) {
 	if err := l.Send(m); err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	for !timeout.timeout {
+	for r.Timeout <= 0 {
 		time.Sleep(l.AckTimeout)
 		l.Update()
 	}

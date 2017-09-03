@@ -8,6 +8,7 @@ import (
 
 type Recver interface {
 	Recv(m Message) error
+	OnAckTimeout(m Message)
 }
 
 type Sender interface {
@@ -57,8 +58,9 @@ func (l *BaseLayer) SendRST(messageID uint16) error {
 }
 
 type CountRecver struct {
-	Writer io.Writer
-	Count  int
+	Writer  io.Writer
+	Count   int
+	Timeout int
 }
 
 func (p *CountRecver) Recv(m Message) error {
@@ -67,6 +69,13 @@ func (p *CountRecver) Recv(m Message) error {
 	}
 	p.Count++
 	return nil
+}
+
+func (p *CountRecver) OnAckTimeout(m Message) {
+	if p.Writer != nil {
+		fmt.Fprintf(p.Writer, "[%s] Recv: %v\n", time.Now(), m.String())
+	}
+	p.Timeout++
 }
 
 type CountSender struct {

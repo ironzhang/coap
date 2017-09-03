@@ -17,10 +17,7 @@ type transmitter struct {
 
 	busy      bool
 	timestamp time.Time
-	code      uint8
-	messageID uint16
-	token     string
-	options   []base.Option
+	message   base.Message
 	reader    *block.Reader
 
 	blockMessageID uint16
@@ -42,10 +39,7 @@ func (t *transmitter) send(m base.Message) error {
 
 	t.busy = true
 	t.timestamp = time.Now()
-	t.code = m.Code
-	t.messageID = m.MessageID
-	t.token = m.Token
-	t.options = m.Options
+	t.message = m
 	t.reader = block.NewReader(m.Payload)
 	return t.sendBlockMessage(m.MessageID, 0, t.blockSize)
 }
@@ -65,8 +59,15 @@ func (t *transmitter) recv(m base.Message) error {
 		return t.sendBlockMessage(t.generator(), block1Opt.Num+1, block1Opt.Size)
 	}
 	t.busy = false
-	m.MessageID = t.messageID
+	m.MessageID = t.message.MessageID
 	return t.baseLayer.Recv(m)
+}
+
+func (t *transmitter) onAckTimeout(m base.Message) {
+	if m.MessageID != t.blockMessageID {
+		t.baseLayer.OnAckTimeout(m)
+	}
+	t.baseLayer.OnAckTimeout(t.message)
 }
 
 func (t *transmitter) sendBlockMessage(messageID uint16, seq, size uint32) error {
@@ -77,13 +78,13 @@ func (t *transmitter) sendBlockMessage(messageID uint16, seq, size uint32) error
 	t.blockMessageID = messageID
 	m := base.Message{
 		Type:      base.CON,
-		Code:      t.code,
+		Code:      t.message.Code,
 		MessageID: messageID,
 		Payload:   payload,
 	}
 	if !block1Opt.More {
-		m.Token = t.token
-		m.Options = t.options
+		m.Token = t.message.Token
+		m.Options = t.message.Options
 	}
 	m.SetOption(base.Block1, block1Opt.Value())
 	return t.baseLayer.Send(m)

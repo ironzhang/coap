@@ -26,6 +26,10 @@ func (l *Layer) init(generator MessageIDGenerator) *Layer {
 func (l *Layer) Update() {
 }
 
+func (l *Layer) OnAckTimeout(m base.Message) {
+	l.transmitter.onAckTimeout(m)
+}
+
 func (l *Layer) Recv(m base.Message) error {
 	switch {
 	case isConRequest(m):

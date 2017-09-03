@@ -14,12 +14,12 @@ type Stack struct {
 	layers []base.Layer
 }
 
-func (s *Stack) Init(recver base.Recver, sender base.Sender, ackTimeout func(base.Message), genMessageID func() uint16) *Stack {
+func (s *Stack) Init(recver base.Recver, sender base.Sender, genMessageID func() uint16) *Stack {
 	s.recver, s.sender, s.layers = makeLayers(
 		recver,
 		sender,
 		deduplication.NewLayer(),
-		reliability.NewLayer(ackTimeout),
+		reliability.NewLayer(),
 		block1.NewLayer(genMessageID),
 	)
 	return s

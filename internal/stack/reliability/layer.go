@@ -30,18 +30,16 @@ type Layer struct {
 	AckTimeout      time.Duration
 	AckRandomFactor float64
 
-	timeout func(base.Message)
-	states  map[uint16]*state
+	states map[uint16]*state
 }
 
-func NewLayer(timeout func(base.Message)) *Layer {
+func NewLayer() *Layer {
 	return &Layer{
 		BaseLayer:       base.BaseLayer{Name: "reliability"},
 		MaxRetransmit:   base.MAX_RETRANSMIT,
 		MaxTransmitSpan: base.MAX_TRANSMIT_SPAN,
 		AckTimeout:      base.ACK_TIMEOUT,
 		AckRandomFactor: base.ACK_RANDOM_FACTOR,
-		timeout:         timeout,
 		states:          make(map[uint16]*state),
 	}
 }
@@ -93,9 +91,7 @@ func (l *Layer) send(s *state) error {
 
 func (l *Layer) doTimeout(s *state) {
 	delete(l.states, s.Message.MessageID)
-	if l.timeout != nil {
-		l.timeout(s.Message)
-	}
+	l.BaseLayer.OnAckTimeout(s.Message)
 }
 
 func (l *Layer) addState(m base.Message) (*state, bool) {
