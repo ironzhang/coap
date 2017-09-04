@@ -98,6 +98,7 @@ func (s *blockTransferClientState) OnAckTimeout(m base.Message) {
 	if m.MessageID != s.blockMID {
 		s.base.OnAckTimeout(m)
 	} else {
+		s.machine.SetState("normalTransferClientState")
 		s.base.OnAckTimeout(s.message)
 	}
 }
