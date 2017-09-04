@@ -6,8 +6,10 @@ var _ base.Layer = &Layer{}
 
 type Layer struct {
 	base.BaseLayer
-	server server
-	client client
+	clientOptions clientOptions
+	client        machine
+	serverOptions serverOptions
+	server        machine
 }
 
 func NewLayer(generator func() uint16) *Layer {
@@ -16,25 +18,35 @@ func NewLayer(generator func() uint16) *Layer {
 
 func (l *Layer) init(generator func() uint16) *Layer {
 	l.BaseLayer.Name = "block1"
-	l.server.init(&l.BaseLayer)
-	l.client.init(&l.BaseLayer, generator, base.MAX_BLOCKSIZE, base.EXCHANGE_LIFETIME)
+	l.clientOptions.Timeout = base.EXCHANGE_LIFETIME
+	l.clientOptions.BlockSize = base.MAX_BLOCKSIZE
+	l.serverOptions.Timeout = base.EXCHANGE_LIFETIME
+	l.client.Init(
+		newNormalTransferClientState(&l.BaseLayer, &l.client, &l.clientOptions),
+		newBlockTransferClientState(&l.BaseLayer, &l.client, &l.clientOptions, generator),
+	)
+	l.server.Init(
+		newNormalTransferServerState(&l.BaseLayer, &l.server),
+		newBlockTransferServerState(&l.BaseLayer, &l.server, &l.serverOptions),
+	)
 	return l
 }
 
 func (l *Layer) Update() {
-	l.client.update()
+	l.client.Update()
+	l.server.Update()
 }
 
 func (l *Layer) OnAckTimeout(m base.Message) {
-	l.client.onAckTimeout(m)
+	l.client.OnAckTimeout(m)
 }
 
 func (l *Layer) Recv(m base.Message) error {
 	switch {
 	case m.Type == base.CON:
-		return l.server.recv(m)
+		return l.server.Recv(m)
 	case m.Type == base.ACK:
-		return l.client.recv(m)
+		return l.client.Recv(m)
 	default:
 		return l.BaseLayer.Recv(m)
 	}
@@ -43,9 +55,9 @@ func (l *Layer) Recv(m base.Message) error {
 func (l *Layer) Send(m base.Message) error {
 	switch {
 	case m.Type == base.CON:
-		return l.client.send(m)
+		return l.client.Send(m)
 	case m.Type == base.ACK:
-		return l.server.send(m)
+		return l.server.Send(m)
 	default:
 		return l.BaseLayer.Send(m)
 	}
