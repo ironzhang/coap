@@ -212,6 +212,63 @@ func TestMessageString(t *testing.T) {
 	}
 }
 
+func TestMessageAddOption(t *testing.T) {
+	options := []Option{
+		{1, "1"},
+		{1, "2"},
+		{2, "2"},
+		{3, 3},
+	}
+	var m Message
+	for _, o := range options {
+		m.AddOption(o.ID, o.Value)
+	}
+	if got, want := m.Options, options; !reflect.DeepEqual(got, want) {
+		t.Errorf("%v != %v", got, want)
+	}
+}
+
+func TestMessageDelOption(t *testing.T) {
+	m := Message{
+		Options: []Option{
+			{1, "1"},
+			{1, "2"},
+			{2, "2"},
+			{3, 3},
+		},
+	}
+	m.DelOption(1)
+	got := m.Options
+	want := []Option{
+		{2, "2"},
+		{3, 3},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%v != %v", got, want)
+	}
+}
+
+func TestMessageSetOption(t *testing.T) {
+	m := Message{
+		Options: []Option{
+			{1, "1"},
+			{1, "2"},
+			{2, "2"},
+			{3, 3},
+		},
+	}
+	m.SetOption(1, 0)
+	got := m.Options
+	want := []Option{
+		{2, "2"},
+		{3, 3},
+		{1, 0},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%v != %v", got, want)
+	}
+}
+
 func TestMessageGetOption(t *testing.T) {
 	options := []Option{
 		{1, "1"},
@@ -223,6 +280,21 @@ func TestMessageGetOption(t *testing.T) {
 		if got, want := m.GetOption(o.ID), o.Value; !reflect.DeepEqual(got, want) {
 			t.Errorf("id=%d: %#v != %#v", o.ID, got, want)
 		}
+	}
+}
+
+func TestMessageGetOptions(t *testing.T) {
+	options := []Option{
+		{1, "1"},
+		{1, "2"},
+		{2, "2"},
+		{3, 3},
+	}
+	m := Message{Options: options}
+	got := m.GetOptions(1)
+	want := []interface{}{"1", "2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%v != %v", got, want)
 	}
 }
 

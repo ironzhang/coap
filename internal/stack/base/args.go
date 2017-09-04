@@ -22,3 +22,8 @@ const (
 	EXCHANGE_LIFETIME = 247 * time.Second
 	NON_LIFETIME      = 145 * time.Second
 )
+
+// blockwise参数
+const (
+	MAX_BLOCKSIZE = 1024
+)

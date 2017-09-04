@@ -31,6 +31,10 @@ func TestBaseLayer(t *testing.T) {
 	if got, want := r.Count, 1; got != want {
 		t.Errorf("recv count: %v != %v", got, want)
 	}
+	l.OnAckTimeout(Message{})
+	if got, want := r.Timeout, 1; got != want {
+		t.Errorf("ack timeout: %v != %v", got, want)
+	}
 
 	l.Send(Message{})
 	l.SendRST(1)
