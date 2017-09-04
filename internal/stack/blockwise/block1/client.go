@@ -1,7 +1,6 @@
 package block1
 
 import (
-	"errors"
 	"time"
 
 	"github.com/ironzhang/coap/internal/stack/base"
@@ -11,82 +10,104 @@ type client struct {
 	baseLayer *base.BaseLayer
 	generator func() uint16
 	blockSize uint32
+	timeout   time.Duration
 
-	busy      bool
-	timestamp time.Time
-	message   base.Message
-	buffer    base.BlockBuffer
-
+	busy           bool
+	timestamp      time.Time
+	message        base.Message
+	buffer         base.BlockBuffer
 	blockMessageID uint16
 }
 
-func (s *client) init(baseLayer *base.BaseLayer, generator func() uint16, blockSize uint32) {
-	s.baseLayer = baseLayer
-	s.generator = generator
-	s.blockSize = blockSize
+func (c *client) init(baseLayer *base.BaseLayer, generator func() uint16, blockSize uint32, timeout time.Duration) {
+	c.baseLayer = baseLayer
+	c.generator = generator
+	c.blockSize = blockSize
+	c.timeout = timeout
 }
 
-func (s *client) send(m base.Message) error {
-	if s.isBusy() {
-		return errors.New("transmitter is busy")
+func (c *client) update() {
+	if c.busy && time.Since(c.timestamp) > c.timeout {
+		c.busy = false
 	}
-	if len(m.Payload) <= int(s.blockSize) {
-		return s.baseLayer.Send(m)
-	}
-
-	s.busy = true
-	s.timestamp = time.Now()
-	s.message = m
-	s.buffer = m.Payload
-	return s.sendBlockMessage(m.MessageID, 0, s.blockSize)
 }
 
-func (s *client) recv(m base.Message) error {
-	if !s.isBusy() {
-		return s.baseLayer.Recv(m)
+func (c *client) send(m base.Message) error {
+	if c.busy {
+		return c.baseLayer.NewError(base.ErrClientBusy)
 	}
-	if s.blockMessageID != m.MessageID {
-		return errors.New("unexpect block message id")
+	if len(m.Payload) <= int(c.blockSize) {
+		return c.baseLayer.Send(m)
 	}
-	block1Opt, ok := base.ParseBlock1Option(m)
+	c.busy = true
+	c.timestamp = time.Now()
+	c.message = m
+	c.buffer = m.Payload
+	return c.sendBlockMessage(m.MessageID, 0, c.blockSize)
+}
+
+func (c *client) recv(m base.Message) error {
+	if !c.busy {
+		return c.baseLayer.Recv(m)
+	}
+	switch m.Code {
+	case base.Continue:
+		return c.handleContinue(m)
+	case base.RequestEntityIncomplete:
+		fallthrough
+	case base.RequestEntityTooLarge:
+		fallthrough
+	default:
+		return c.handleError(m)
+	}
+}
+
+func (c *client) onAckTimeout(m base.Message) {
+	if m.MessageID != c.blockMessageID {
+		c.baseLayer.OnAckTimeout(m)
+	}
+	c.busy = false
+	c.baseLayer.OnAckTimeout(c.message)
+}
+
+func (c *client) handleContinue(m base.Message) error {
+	if c.blockMessageID != m.MessageID {
+		return c.baseLayer.NewError(base.ErrUnexpectMessageID)
+	}
+	opt, ok := base.ParseBlock1Option(m)
 	if !ok {
-		return errors.New("no block1 option")
+		return c.baseLayer.NewError(base.ErrNoBlock1Option)
 	}
-	if block1Opt.More {
-		return s.sendBlockMessage(s.generator(), block1Opt.Num+1, block1Opt.Size)
+	if opt.More {
+		return c.sendBlockMessage(c.generator(), opt.Num+1, opt.Size)
 	}
-	s.busy = false
-	m.MessageID = s.message.MessageID
-	return s.baseLayer.Recv(m)
+	c.busy = false
+	m.MessageID = c.message.MessageID
+	return c.baseLayer.Recv(m)
 }
 
-func (s *client) onAckTimeout(m base.Message) {
-	if m.MessageID != s.blockMessageID {
-		s.baseLayer.OnAckTimeout(m)
-	}
-	s.baseLayer.OnAckTimeout(s.message)
+func (c *client) handleError(m base.Message) error {
+	c.busy = false
+	m.MessageID = c.message.MessageID
+	return c.baseLayer.Recv(m)
 }
 
-func (s *client) sendBlockMessage(messageID uint16, seq, size uint32) error {
-	opt, payload, err := s.buffer.Read(seq, size)
+func (c *client) sendBlockMessage(messageID uint16, seq, size uint32) error {
+	opt, payload, err := c.buffer.Read(seq, size)
 	if err != nil {
 		return err
 	}
-	s.blockMessageID = messageID
+	c.blockMessageID = messageID
 	m := base.Message{
 		Type:      base.CON,
-		Code:      s.message.Code,
+		Code:      c.message.Code,
 		MessageID: messageID,
 		Payload:   payload,
 	}
 	if !opt.More {
-		m.Token = s.message.Token
-		m.Options = s.message.Options
+		m.Token = c.message.Token
+		m.Options = c.message.Options
 	}
 	m.SetOption(base.Block1, opt.Value())
-	return s.baseLayer.Send(m)
-}
-
-func (s *client) isBusy() bool {
-	return s.busy
+	return c.baseLayer.Send(m)
 }

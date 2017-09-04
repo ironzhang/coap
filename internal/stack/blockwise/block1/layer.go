@@ -17,11 +17,12 @@ func NewLayer(generator func() uint16) *Layer {
 func (l *Layer) init(generator func() uint16) *Layer {
 	l.BaseLayer.Name = "block1"
 	l.server.init(&l.BaseLayer)
-	l.client.init(&l.BaseLayer, generator, base.MAX_BLOCKSIZE)
+	l.client.init(&l.BaseLayer, generator, base.MAX_BLOCKSIZE, base.EXCHANGE_LIFETIME)
 	return l
 }
 
 func (l *Layer) Update() {
+	l.client.update()
 }
 
 func (l *Layer) OnAckTimeout(m base.Message) {
