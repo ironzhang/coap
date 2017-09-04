@@ -1,92 +1,62 @@
 package block1
 
 import (
+	"bytes"
 	"errors"
-	"time"
 
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
 type server struct {
 	baseLayer *base.BaseLayer
-	generator func() uint16
-	blockSize uint32
-
-	busy      bool
-	timestamp time.Time
-	message   base.Message
-	buffer    buffer
-
-	blockMessageID uint16
+	buffer    bytes.Buffer
+	messageID uint16
+	block1    uint32
 }
 
-func (s *server) init(baseLayer *base.BaseLayer, generator func() uint16, blockSize uint32) {
-	s.baseLayer = baseLayer
-	s.generator = generator
-	s.blockSize = blockSize
+func (c *server) init(baseLayer *base.BaseLayer) {
+	c.baseLayer = baseLayer
 }
 
-func (s *server) send(m base.Message) error {
-	if s.isBusy() {
-		return errors.New("transmitter is busy")
-	}
-	if len(m.Payload) <= int(s.blockSize) {
-		return s.baseLayer.Send(m)
-	}
-
-	s.busy = true
-	s.timestamp = time.Now()
-	s.message = m
-	s.buffer.Reset(m.Payload)
-	return s.sendBlockMessage(m.MessageID, 0, s.blockSize)
-}
-
-func (s *server) recv(m base.Message) error {
-	if !s.isBusy() {
-		return s.baseLayer.Recv(m)
-	}
-	if s.blockMessageID != m.MessageID {
-		return errors.New("unexpect block message id")
-	}
+func (c *server) recv(m base.Message) error {
 	block1Opt, ok := base.ParseBlock1Option(m)
 	if !ok {
-		return errors.New("no block1 option")
+		return c.baseLayer.Recv(m)
 	}
+	if c.buffer.Len() != int(block1Opt.Num*block1Opt.Size) {
+		return errors.New("request entity incomplete")
+	}
+	c.buffer.Write(m.Payload)
 	if block1Opt.More {
-		return s.sendBlockMessage(s.generator(), block1Opt.Num+1, block1Opt.Size)
+		return c.ackContinue(m.MessageID, block1Opt.Value())
 	}
-	s.busy = false
-	m.MessageID = s.message.MessageID
-	return s.baseLayer.Recv(m)
+	c.messageID = m.MessageID
+	c.block1 = block1Opt.Value()
+	m.Payload = c.copyAndResetBuffer()
+	return c.baseLayer.Recv(m)
 }
 
-func (s *server) onAckTimeout(m base.Message) {
-	if m.MessageID != s.blockMessageID {
-		s.baseLayer.OnAckTimeout(m)
+func (c *server) send(m base.Message) error {
+	if m.MessageID != c.messageID {
+		return c.baseLayer.Send(m)
 	}
-	s.baseLayer.OnAckTimeout(s.message)
+	m.SetOption(base.Block1, c.block1)
+	return c.baseLayer.Send(m)
 }
 
-func (s *server) sendBlockMessage(messageID uint16, seq, size uint32) error {
-	block1Opt, payload, err := s.buffer.Read(seq, size)
-	if err != nil {
-		return err
-	}
-	s.blockMessageID = messageID
+func (c *server) ackContinue(messageID uint16, block1 uint32) error {
 	m := base.Message{
-		Type:      base.CON,
-		Code:      s.message.Code,
+		Type:      base.ACK,
+		Code:      base.Continue,
 		MessageID: messageID,
-		Payload:   payload,
 	}
-	if !block1Opt.More {
-		m.Token = s.message.Token
-		m.Options = s.message.Options
-	}
-	m.SetOption(base.Block1, block1Opt.Value())
-	return s.baseLayer.Send(m)
+	m.SetOption(base.Block1, block1)
+	return c.baseLayer.Send(m)
 }
 
-func (s *server) isBusy() bool {
-	return s.busy
+func (c *server) copyAndResetBuffer() []byte {
+	b := make([]byte, c.buffer.Len())
+	copy(b, c.buffer.Bytes())
+	c.buffer.Reset()
+	return b
 }
