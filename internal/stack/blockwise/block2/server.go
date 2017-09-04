@@ -14,7 +14,7 @@ type server struct {
 	busy      bool
 	timestamp time.Time
 	message   base.Message
-	buffer    buffer
+	buffer    base.BlockBuffer
 }
 
 func (s *server) init(baseLayer *base.BaseLayer, blockSize uint32) {
@@ -32,7 +32,7 @@ func (s *server) send(m base.Message) error {
 	s.busy = true
 	s.timestamp = time.Now()
 	s.message = m
-	s.buffer.Reset(m.Payload)
+	s.buffer = m.Payload
 	return s.sendBlockMessage(m.MessageID, 0, s.blockSize)
 }
 
