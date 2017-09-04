@@ -7,8 +7,6 @@ import (
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
-type MessageIDGenerator func() uint16
-
 type server struct {
 	baseLayer *base.BaseLayer
 	generator func() uint16
@@ -22,7 +20,7 @@ type server struct {
 	blockMessageID uint16
 }
 
-func (s *server) init(baseLayer *base.BaseLayer, generator MessageIDGenerator, blockSize uint32) {
+func (s *server) init(baseLayer *base.BaseLayer, generator func() uint16, blockSize uint32) {
 	s.baseLayer = baseLayer
 	s.generator = generator
 	s.blockSize = blockSize

@@ -2,8 +2,6 @@ package block1
 
 import "github.com/ironzhang/coap/internal/stack/base"
 
-const MaxBlockSize = 1024
-
 var _ base.Layer = &Layer{}
 
 type Layer struct {
@@ -12,14 +10,14 @@ type Layer struct {
 	server server
 }
 
-func NewLayer(generator MessageIDGenerator) *Layer {
+func NewLayer(generator func() uint16) *Layer {
 	return new(Layer).init(generator)
 }
 
-func (l *Layer) init(generator MessageIDGenerator) *Layer {
+func (l *Layer) init(generator func() uint16) *Layer {
 	l.BaseLayer.Name = "block1"
 	l.client.init(&l.BaseLayer)
-	l.server.init(&l.BaseLayer, generator, MaxBlockSize)
+	l.server.init(&l.BaseLayer, generator, base.MAX_BLOCKSIZE)
 	return l
 }
 
@@ -50,11 +48,4 @@ func (l *Layer) Send(m base.Message) error {
 	default:
 		return l.BaseLayer.Send(m)
 	}
-}
-
-func isConRequest(m base.Message) bool {
-	if m.Type != base.CON {
-		return false
-	}
-	return (m.Code >> 5) == 0
 }
