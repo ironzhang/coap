@@ -50,7 +50,7 @@ func (s *server) send(m base.Message) error {
 func (s *server) busyStateRecv(m base.Message) error {
 	opt, ok := base.ParseBlock1Option(m)
 	if !ok {
-		return l.baseLayer.NewError(base.ErrNoBlock1Option)
+		return s.baseLayer.NewError(base.ErrNoBlock1Option)
 	}
 	if s.buffer.Len() != int(opt.Num*opt.Size) {
 		return s.ackRequestEntityIncomplete(m.MessageID)
@@ -68,7 +68,7 @@ func (s *server) busyStateRecv(m base.Message) error {
 func (s *server) idleStateRecv(m base.Message) error {
 	opt, ok := base.ParseBlock1Option(m)
 	if !ok {
-		return l.baseLayer.Recv(m)
+		return s.baseLayer.Recv(m)
 	}
 
 	s.busy = true
