@@ -7,66 +7,102 @@ import (
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
+type sstate struct {
+	start  time.Time
+	source base.Message
+	buffer base.BlockBuffer
+}
+
+type sstatus struct {
+	states map[string]*sstate
+}
+
+func (p *sstatus) add(m base.Message) (*sstate, error) {
+	if p.states == nil {
+		p.states = make(map[string]*sstate)
+	}
+	if _, ok := p.states[m.Token]; ok {
+		return nil, errors.New("token duplicate")
+	}
+	s := &sstate{start: time.Now(), source: m, buffer: m.Payload}
+	p.states[m.Token] = s
+	return s, nil
+}
+
+func (p *sstatus) del(token string) {
+	delete(p.states, token)
+}
+
+func (p *sstatus) get(token string) (*sstate, bool) {
+	s, ok := p.states[token]
+	return s, ok
+}
+
+func (p *sstatus) update(timeout time.Duration) {
+	for token, s := range p.states {
+		if time.Since(s.start) > timeout {
+			delete(p.states, token)
+		}
+	}
+}
+
 type server struct {
-	baseLayer *base.BaseLayer
+	base      *base.BaseLayer
 	blockSize uint32
-
-	busy      bool
-	timestamp time.Time
-	message   base.Message
-	buffer    base.BlockBuffer
+	timeout   time.Duration
+	status    sstatus
 }
 
-func (s *server) init(baseLayer *base.BaseLayer, blockSize uint32) {
-	s.baseLayer = baseLayer
+func (s *server) init(b *base.BaseLayer, blockSize uint32, timeout time.Duration) {
+	s.base = b
 	s.blockSize = blockSize
+	s.timeout = timeout
 }
 
-func (s *server) send(m base.Message) error {
-	if s.isBusy() {
-		return errors.New("transmitter is busy")
-	}
+func (s *server) Update() {
+	s.status.update(s.timeout)
+}
+
+func (s *server) Send(m base.Message) error {
 	if len(m.Payload) <= int(s.blockSize) {
-		return s.baseLayer.Send(m)
+		return s.base.Send(m)
 	}
-	s.busy = true
-	s.timestamp = time.Now()
-	s.message = m
-	s.buffer = m.Payload
-	return s.sendBlockMessage(m.MessageID, 0, s.blockSize)
+	state, err := s.status.add(m)
+	if err != nil {
+		return s.base.NewError(err)
+	}
+	return s.sendBlockMessage(m.MessageID, state, 0, s.blockSize)
 }
 
-func (t *server) recv(m base.Message) error {
-	if !t.isBusy() {
-		return t.baseLayer.Recv(m)
+func (s *server) Recv(m base.Message) error {
+	state, ok := s.status.get(m.Token)
+	if !ok {
+		return s.base.Recv(m)
 	}
 	opt, ok := base.ParseBlock2Option(m)
 	if !ok {
-		return errors.New("no block2 option")
+		return s.base.NewError(base.ErrNoBlock2Option)
 	}
-	return t.sendBlockMessage(m.MessageID, opt.Num, opt.Size)
+	s.blockSize = opt.Size
+	return s.sendBlockMessage(m.MessageID, state, opt.Num, opt.Size)
 }
 
-func (t *server) sendBlockMessage(messageID uint16, seq, size uint32) error {
-	opt, payload, err := t.buffer.Read(seq, size)
+func (s *server) sendBlockMessage(messageID uint16, state *sstate, num, size uint32) error {
+	opt, payload, err := state.buffer.Read(num, size)
 	if err != nil {
-		return err
+		return s.base.NewError(err)
+	}
+	if !opt.More {
+		s.status.del(state.source.Token)
 	}
 	m := base.Message{
 		Type:      base.ACK,
-		Code:      t.message.Code,
+		Code:      state.source.Code,
 		MessageID: messageID,
+		Token:     state.source.Token,
+		Options:   state.source.Options,
 		Payload:   payload,
 	}
-	if !opt.More {
-		t.busy = false
-		m.Token = t.message.Token
-		m.Options = t.message.Options
-	}
 	m.SetOption(base.Block2, opt.Value())
-	return t.baseLayer.Send(m)
-}
-
-func (t *server) isBusy() bool {
-	return t.busy
+	return s.base.Send(m)
 }

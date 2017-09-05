@@ -13,21 +13,26 @@ func NewLayer(generator func() uint16) *Layer {
 }
 
 func (l *Layer) init(generator func() uint16) *Layer {
-	l.BaseLayer.Name = "block1"
+	l.BaseLayer.Name = "block2"
 	l.client.init(&l.BaseLayer, generator)
-	l.server.init(&l.BaseLayer, 1024)
+	l.server.init(&l.BaseLayer, base.MAX_BLOCKSIZE, base.EXCHANGE_LIFETIME)
 	return l
 }
 
 func (l *Layer) Update() {
+	l.server.Update()
+}
+
+func (l *Layer) OnAckTimeout(m base.Message) {
+	l.client.OnAckTimeout(m)
 }
 
 func (l *Layer) Recv(m base.Message) error {
 	switch m.Type {
 	case base.CON:
-		return l.server.recv(m)
+		return l.server.Recv(m)
 	case base.ACK:
-		return l.client.recv(m)
+		return l.client.Recv(m)
 	default:
 		return l.BaseLayer.Recv(m)
 	}
@@ -36,9 +41,9 @@ func (l *Layer) Recv(m base.Message) error {
 func (l *Layer) Send(m base.Message) error {
 	switch m.Type {
 	case base.CON:
-		return l.client.send(m)
+		return l.client.Send(m)
 	case base.ACK:
-		return l.server.send(m)
+		return l.server.Send(m)
 	default:
 		return l.BaseLayer.Send(m)
 	}
