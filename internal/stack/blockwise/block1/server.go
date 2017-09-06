@@ -2,74 +2,96 @@ package block1
 
 import (
 	"bytes"
-	"errors"
 	"time"
 
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
-type blockState struct {
-	start  time.Time
-	buffer bytes.Buffer
+type sstate struct {
+	deleted   bool
+	start     time.Time
+	waitAck   bool
+	token     string
+	buffer    bytes.Buffer
+	messageID uint16
+	block1    uint32
 }
 
-type ackState struct {
-	start  time.Time
-	block1 uint32
+func (s *sstate) WaitAck(messageID uint16, block1 uint32) {
+	s.waitAck = true
+	s.messageID = messageID
+	s.block1 = block1
 }
 
-type smstatus struct {
-	acks   map[uint16]ackState
-	blocks map[string]*blockState
+type sstatus struct {
+	states []*sstate
 }
 
-func (p *smstatus) init() {
-	p.acks = make(map[uint16]ackState)
-	p.blocks = make(map[string]*blockState)
-}
-
-func (p *smstatus) getBlockState(token string) *blockState {
-	s, ok := p.blocks[token]
-	if !ok {
-		s = &blockState{start: time.Now()}
-		p.blocks[token] = s
+func (p *sstatus) add(token string) *sstate {
+	for _, s := range p.states {
+		if s.deleted {
+			continue
+		}
+		if s.waitAck {
+			continue
+		}
+		if s.token == token {
+			return s
+		}
 	}
+
+	for _, s := range p.states {
+		if !s.deleted {
+			continue
+		}
+		s.deleted = false
+		s.start = time.Now()
+		s.waitAck = false
+		s.token = token
+		s.buffer.Reset()
+		return s
+	}
+	s := &sstate{start: time.Now(), token: token}
+	p.states = append(p.states, s)
 	return s
 }
 
-func (p *smstatus) getAckBlock1(messageID uint16) (uint32, bool) {
-	if ack, ok := p.acks[messageID]; ok {
-		return ack.block1, true
-	}
-	return 0, false
-}
-
-func (p *smstatus) changeToAckState(token string, messageID uint16, block1 uint32) error {
-	s, ok := p.blocks[token]
-	if !ok {
-		return errors.New("message state not found")
-	}
-	if _, ok = p.acks[messageID]; ok {
-		return errors.New("message id duplicate")
-	}
-	delete(p.blocks, token)
-	p.acks[messageID] = ackState{start: s.start, block1: block1}
-	return nil
-}
-
-func (p *smstatus) finishAckState(messageID uint16) {
-	delete(p.acks, messageID)
-}
-
-func (p *smstatus) update(timeout time.Duration) {
-	for id, ack := range p.acks {
-		if time.Since(ack.start) > timeout {
-			delete(p.acks, id)
+func (p *sstatus) del(messageID uint16) {
+	for _, s := range p.states {
+		if s.deleted {
+			continue
+		}
+		if !s.waitAck {
+			continue
+		}
+		if s.messageID == messageID {
+			s.deleted = true
 		}
 	}
-	for token, block := range p.blocks {
-		if time.Since(block.start) > timeout {
-			delete(p.blocks, token)
+}
+
+func (p *sstatus) get(messageID uint16) (*sstate, bool) {
+	for _, s := range p.states {
+		if s.deleted {
+			continue
+		}
+		if !s.waitAck {
+			continue
+		}
+		if s.messageID == messageID {
+			return s, true
+		}
+	}
+	return nil, false
+}
+
+func (p *sstatus) update(timeout time.Duration) {
+	for _, s := range p.states {
+		if s.deleted {
+			continue
+		}
+		if time.Since(s.start) > timeout {
+			s.deleted = true
 		}
 	}
 }
@@ -77,13 +99,12 @@ func (p *smstatus) update(timeout time.Duration) {
 type server struct {
 	base    *base.BaseLayer
 	timeout time.Duration
-	status  smstatus
+	status  sstatus
 }
 
 func (s *server) init(b *base.BaseLayer, timeout time.Duration) {
 	s.base = b
 	s.timeout = timeout
-	s.status.init()
 }
 
 func (s *server) Update() {
@@ -96,25 +117,23 @@ func (s *server) Recv(m base.Message) error {
 		return s.base.Recv(m)
 	}
 
-	state := s.status.getBlockState(m.Token)
-	if state.buffer.Len() != int(opt.Num*opt.Size) {
-		return s.ackIncomplete(m.MessageID, m.Token)
+	state := s.status.add(m.Token)
+	if state.buffer.Len() == int(opt.Num*opt.Size) {
+		state.buffer.Write(m.Payload)
+		if opt.More {
+			return s.ackContinue(m.MessageID, m.Token, opt.Value())
+		}
+		state.WaitAck(m.MessageID, opt.Value())
+		m.Payload = copyBuffer(state.buffer.Bytes())
+		return s.base.Recv(m)
 	}
-	state.buffer.Write(m.Payload)
-	if opt.More {
-		return s.ackContinue(m.MessageID, m.Token, opt.Value())
-	}
-	if err := s.status.changeToAckState(m.Token, m.MessageID, opt.Value()); err != nil {
-		return s.base.NewError(err)
-	}
-	m.Payload = state.buffer.Bytes()
-	return s.base.Recv(m)
+	return s.ackIncomplete(m.MessageID, m.Token)
 }
 
 func (s *server) Send(m base.Message) error {
-	if block1, ok := s.status.getAckBlock1(m.MessageID); ok {
-		s.status.finishAckState(m.MessageID)
-		m.SetOption(base.Block1, block1)
+	if state, ok := s.status.get(m.MessageID); ok {
+		s.status.del(m.MessageID)
+		m.SetOption(base.Block1, state.block1)
 		return s.base.Send(m)
 	}
 	return s.base.Send(m)
@@ -139,4 +158,10 @@ func (s *server) ackContinue(messageID uint16, token string, block1 uint32) erro
 	}
 	m.SetOption(base.Block1, block1)
 	return s.base.Send(m)
+}
+
+func copyBuffer(src []byte) []byte {
+	dst := make([]byte, len(src))
+	copy(dst, src)
+	return dst
 }

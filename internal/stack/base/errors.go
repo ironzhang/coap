@@ -6,11 +6,8 @@ import (
 )
 
 var (
-	ErrClientBusy        = errors.New("coap stack client busy")
-	ErrServerBusy        = errors.New("coap stack server busy")
-	ErrNoBlock1Option    = errors.New("no block1 option")
-	ErrNoBlock2Option    = errors.New("no block2 option")
-	ErrUnexpectMessageID = errors.New("unexpect message id")
+	ErrNoBlock1Option = errors.New("no block1 option")
+	ErrNoBlock2Option = errors.New("no block2 option")
 )
 
 type Error struct {
