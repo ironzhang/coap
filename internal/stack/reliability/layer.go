@@ -46,12 +46,16 @@ func NewLayer() *Layer {
 
 func (l *Layer) Update() {
 	for _, s := range l.states {
-		if s.Retransmit >= l.MaxRetransmit || time.Since(s.Start) >= l.MaxTransmitSpan {
+		if time.Since(s.Start) >= l.MaxTransmitSpan {
 			l.doTimeout(s)
 			continue
 		}
 
 		if time.Since(s.LastRetransmit) >= s.Timeout {
+			if s.Retransmit >= l.MaxRetransmit {
+				l.doTimeout(s)
+				continue
+			}
 			l.send(s)
 		}
 	}
