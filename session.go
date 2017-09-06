@@ -20,8 +20,9 @@ import (
 var Verbose = 1
 
 var (
-	ErrReset   = errors.New("wait response reset by peer")
-	ErrTimeout = errors.New("wait response timeout")
+	ErrReset      = errors.New("wait response reset by peer")
+	ErrTimeout    = errors.New("wait response timeout")
+	ErrAckTimeout = errors.New("wait ack timeout")
 )
 
 // Handler 响应COAP请求的接口
@@ -204,7 +205,7 @@ func (s *session) Close() error {
 }
 
 func (s *session) OnAckTimeout(m base.Message) {
-	s.finishAckWait(m, ErrTimeout)
+	s.finishAckWait(m, ErrAckTimeout)
 	if len(m.Token) > 0 {
 		s.finishResponseWait(m, ErrTimeout)
 	}
