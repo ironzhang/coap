@@ -6,18 +6,18 @@ import (
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
-type cmstate struct {
+type cstate struct {
 	deleted   bool
 	messageID uint16
 	source    base.Message
 	buffer    base.BlockBuffer
 }
 
-type cmstatus struct {
-	states []*cmstate
+type cstatus struct {
+	states []*cstate
 }
 
-func (p *cmstatus) add(m base.Message) (*cmstate, error) {
+func (p *cstatus) add(m base.Message) (*cstate, error) {
 	for _, s := range p.states {
 		if s.deleted {
 			continue
@@ -37,12 +37,12 @@ func (p *cmstatus) add(m base.Message) (*cmstate, error) {
 		s.buffer = m.Payload
 		return s, nil
 	}
-	s := &cmstate{messageID: m.MessageID, source: m, buffer: m.Payload}
+	s := &cstate{messageID: m.MessageID, source: m, buffer: m.Payload}
 	p.states = append(p.states, s)
 	return s, nil
 }
 
-func (p *cmstatus) del(messageID uint16) {
+func (p *cstatus) del(messageID uint16) {
 	for _, s := range p.states {
 		if s.deleted {
 			continue
@@ -53,7 +53,7 @@ func (p *cmstatus) del(messageID uint16) {
 	}
 }
 
-func (p *cmstatus) get(messageID uint16) (*cmstate, bool) {
+func (p *cstatus) get(messageID uint16) (*cstate, bool) {
 	for _, s := range p.states {
 		if s.deleted {
 			continue
@@ -69,7 +69,13 @@ type client struct {
 	base      *base.BaseLayer
 	generator func() uint16
 	blockSize uint32
-	status    cmstatus
+	status    cstatus
+}
+
+func (c *client) init(b *base.BaseLayer, f func() uint16, blockSize uint32) {
+	c.base = b
+	c.generator = f
+	c.blockSize = blockSize
 }
 
 func (c *client) OnAckTimeout(m base.Message) {
@@ -97,21 +103,24 @@ func (c *client) Recv(m base.Message) error {
 	if !ok {
 		return c.base.Recv(m)
 	}
-	opt, ok := base.ParseBlock1Option(m)
-	if !ok {
-		c.status.del(m.MessageID)
-		return c.base.NewError(base.ErrNoBlock1Option)
+
+	if m.Code == base.Continue {
+		opt, ok := base.ParseBlock1Option(m)
+		if !ok {
+			c.status.del(m.MessageID)
+			return c.base.NewError(base.ErrNoBlock1Option)
+		}
+		c.blockSize = opt.Size
+		if opt.More {
+			return c.sendBlockMessage(c.generator(), state, opt.Num+1, opt.Size)
+		}
 	}
-	if !opt.More {
-		c.status.del(m.MessageID)
-		m.MessageID = state.source.MessageID
-		return c.base.Recv(m)
-	}
-	c.blockSize = opt.Size
-	return c.sendBlockMessage(c.generator(), state, opt.Num+1, opt.Size)
+	c.status.del(m.MessageID)
+	m.MessageID = state.source.MessageID
+	return c.base.Recv(m)
 }
 
-func (c *client) sendBlockMessage(messageID uint16, state *cmstate, num, size uint32) error {
+func (c *client) sendBlockMessage(messageID uint16, state *cstate, num, size uint32) error {
 	state.messageID = messageID
 	opt, payload, err := state.buffer.Read(num, size)
 	if err != nil {
