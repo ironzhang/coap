@@ -17,7 +17,7 @@ import (
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
-var Verbose = true
+var Verbose = 1
 
 var (
 	ErrReset   = errors.New("wait response reset by peer")
@@ -211,6 +211,10 @@ func (s *session) OnAckTimeout(m base.Message) {
 }
 
 func (s *session) Recv(m base.Message) error {
+	if Verbose == 1 {
+		log.Printf("recv: %s\n", m.String())
+	}
+
 	switch m.Type {
 	case base.CON, base.NON:
 		s.handleMSG(m)
@@ -355,6 +359,9 @@ func (s *session) handleRST(m base.Message) {
 }
 
 func (s *session) Send(m base.Message) error {
+	if Verbose == 2 {
+		log.Printf("send: %s\n", m.String())
+	}
 	data, err := m.Marshal()
 	if err != nil {
 		return err
@@ -376,7 +383,7 @@ func (s *session) recvData(data []byte) {
 }
 
 func (s *session) recvMessage(m base.Message) {
-	if Verbose {
+	if Verbose == 2 {
 		log.Printf("recv: %s\n", m.String())
 	}
 	if err := s.stack.Recv(m); err != nil {
@@ -393,7 +400,7 @@ func (s *session) postMessage(m base.Message) {
 }
 
 func (s *session) sendMessage(m base.Message) error {
-	if Verbose {
+	if Verbose == 1 {
 		log.Printf("send: %s\n", m.String())
 	}
 	return s.stack.Send(m)
