@@ -27,6 +27,7 @@ type Layer struct {
 	base.BaseLayer
 	MaxRetransmit   int
 	MaxTransmitSpan time.Duration
+	MaxTransmitWait time.Duration
 	AckTimeout      time.Duration
 	AckRandomFactor float64
 
@@ -38,6 +39,7 @@ func NewLayer() *Layer {
 		BaseLayer:       base.BaseLayer{Name: "reliability"},
 		MaxRetransmit:   base.MAX_RETRANSMIT,
 		MaxTransmitSpan: base.MAX_TRANSMIT_SPAN,
+		MaxTransmitWait: base.MAX_TRANSMIT_WAIT,
 		AckTimeout:      base.ACK_TIMEOUT,
 		AckRandomFactor: base.ACK_RANDOM_FACTOR,
 		states:          make(map[uint16]*state),
@@ -46,7 +48,12 @@ func NewLayer() *Layer {
 
 func (l *Layer) Update() {
 	for _, s := range l.states {
-		if time.Since(s.Start) >= l.MaxTransmitSpan {
+		if s.LastRetransmit.Sub(s.Start) >= l.MaxTransmitSpan {
+			l.doTimeout(s)
+			continue
+		}
+
+		if time.Since(s.Start) >= l.MaxTransmitWait {
 			l.doTimeout(s)
 			continue
 		}
