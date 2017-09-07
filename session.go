@@ -44,7 +44,7 @@ type ResponseWriter interface {
 	SetConfirmable()
 
 	// Options 返回Options
-	Options() Options
+	Options() *Options
 
 	// WriteCode 写入响应状态码, 默认为Content
 	WriteCode(Code)
@@ -82,8 +82,8 @@ func (r *response) SetConfirmable() {
 	r.confirmable = true
 }
 
-func (r *response) Options() Options {
-	return r.options
+func (r *response) Options() *Options {
+	return &r.options
 }
 
 func (r *response) WriteCode(code Code) {

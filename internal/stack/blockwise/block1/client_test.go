@@ -2,6 +2,7 @@ package block1
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/ironzhang/coap/internal/stack/base"
@@ -60,8 +61,8 @@ func NewTestClient(r base.Recver, s base.Sender, f func() uint16, bs uint32) *cl
 func TestClient(t *testing.T) {
 	var id uint16
 	f := func() uint16 { id++; return id }
-	r := &base.CountRecver{}
-	s := &base.CountSender{}
+	r := &base.CountRecver{Writer: os.Stdout}
+	s := &base.CountSender{Writer: os.Stdout}
 	c := NewTestClient(r, s, f, 16)
 	p := bytes.Repeat([]byte("1"), 50)
 
@@ -104,5 +105,12 @@ func TestClient(t *testing.T) {
 	ack.SetOption(base.Block1, opt.Value())
 	if err := c.Recv(ack); err != nil {
 		t.Fatalf("recv: %v", err)
+	}
+
+	if got, want := s.Count, 3; got != want {
+		t.Errorf("send: %d != %d", got, want)
+	}
+	if got, want := r.Count, 1; got != want {
+		t.Errorf("recv: %d != %d", got, want)
 	}
 }
