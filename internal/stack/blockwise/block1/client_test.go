@@ -2,7 +2,7 @@ package block1
 
 import (
 	"bytes"
-	"os"
+	"reflect"
 	"testing"
 
 	"github.com/ironzhang/coap/internal/stack/base"
@@ -58,13 +58,33 @@ func NewTestClient(r base.Recver, s base.Sender, f func() uint16, bs uint32) *cl
 	return &c
 }
 
+type TestSender struct {
+	Count  int
+	Buffer bytes.Buffer
+}
+
+func (s *TestSender) Send(m base.Message) error {
+	s.Count++
+	s.Buffer.Write(m.Payload)
+	//fmt.Printf("%s: (%v)%v\n", m.String(), len(m.Payload), m.Payload)
+	return nil
+}
+
+func MakeTestPayload(n int) []byte {
+	b := make([]byte, n)
+	for i := 0; i < n; i++ {
+		b[i] = byte(i)
+	}
+	return b
+}
+
 func TestClient(t *testing.T) {
 	var id uint16
 	f := func() uint16 { id++; return id }
-	r := &base.CountRecver{Writer: os.Stdout}
-	s := &base.CountSender{Writer: os.Stdout}
+	r := &base.CountRecver{ /*Writer: os.Stdout*/ }
+	s := &TestSender{}
 	c := NewTestClient(r, s, f, 16)
-	p := bytes.Repeat([]byte("1"), 50)
+	p := MakeTestPayload(50)
 
 	m := base.Message{
 		Type:      base.CON,
@@ -78,7 +98,7 @@ func TestClient(t *testing.T) {
 	}
 
 	opt := base.BlockOption{}
-	for i := 1; i <= 2; i++ {
+	for i := 0; i <= 2; i++ {
 		opt.Num = uint32(i)
 		opt.More = true
 		opt.Size = 16
@@ -107,10 +127,13 @@ func TestClient(t *testing.T) {
 		t.Fatalf("recv: %v", err)
 	}
 
-	if got, want := s.Count, 3; got != want {
-		t.Errorf("send: %d != %d", got, want)
-	}
 	if got, want := r.Count, 1; got != want {
 		t.Errorf("recv: %d != %d", got, want)
+	}
+	if got, want := s.Count, 4; got != want {
+		t.Errorf("send: %d != %d", got, want)
+	}
+	if got, want := s.Buffer.Bytes(), p; !reflect.DeepEqual(got, want) {
+		t.Errorf("payload: (%d)%v != (%d)%v", len(got), got, len(want), want)
 	}
 }
