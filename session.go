@@ -346,6 +346,30 @@ func (s *session) handleACK(m base.Message) {
 	if len(m.Token) > 0 {
 		s.finishResponseWait(m, nil)
 	}
+
+	options := Options(m.Options)
+	if options.Contain(Observe) {
+		s.handleObserveACK(m)
+	}
+}
+
+func (s *session) handleObserveACK(m base.Message) {
+	if s.observer == nil {
+		log.Printf("observer is nil")
+		return
+	}
+
+	// 由serving协程调用上层观察者接口处理订阅响应
+	s.servingc <- func() {
+		resp := &Response{
+			Ack:     m.Type == base.ACK,
+			Status:  Code(m.Code),
+			Options: m.Options,
+			Token:   m.Token,
+			Payload: m.Payload,
+		}
+		s.observer.ServeObserve(resp)
+	}
 }
 
 func (s *session) handleRST(m base.Message) {
