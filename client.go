@@ -3,14 +3,12 @@ package coap
 import (
 	"errors"
 	"net"
-	"sync"
+	"net/url"
+	"sync/atomic"
 )
 
 type Client struct {
 	Handler Handler
-
-	mu    sync.RWMutex
-	conns map[string]*clientConn
 }
 
 func (c *Client) SendRequest(req *Request) (*Response, error) {
@@ -21,62 +19,38 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 		return nil, errors.New("coap: invalid Request.URL.Host")
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", req.URL.Host)
+	conn, err := c.dialUDP(req.URL)
 	if err != nil {
 		return nil, err
 	}
-	conn, err := c.addConn(addr)
-	if err != nil {
-		return nil, err
-	}
-	return conn.sess.postRequestAndWaitResponse(req)
+
+	var closed int64
+	defer func() {
+		atomic.StoreInt64(&closed, 1)
+		conn.Close()
+	}()
+
+	sess := newSession(conn, c.Handler, nil, conn.LocalAddr(), conn.RemoteAddr())
+	go func() {
+		var buf [1500]byte
+		for atomic.LoadInt64(&closed) == 0 {
+			n, err := conn.Read(buf[:])
+			if err != nil {
+				continue
+			}
+			data := make([]byte, n)
+			copy(data, buf[:n])
+			sess.recvData(data)
+		}
+	}()
+
+	return sess.postRequestAndWaitResponse(req)
 }
 
-func (c *Client) addConn(addr *net.UDPAddr) (*clientConn, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.conns == nil {
-		c.conns = make(map[string]*clientConn)
-	}
-	conn, ok := c.conns[addr.String()]
-	if !ok {
-		conn = &clientConn{}
-		if err := conn.init(addr, c.Handler); err != nil {
-			return nil, err
-		}
-		c.conns[addr.String()] = conn
+func (c *Client) dialUDP(url *url.URL) (net.Conn, error) {
+	conn, err := net.Dial("udp", url.Host)
+	if err != nil {
+		return nil, err
 	}
 	return conn, nil
-}
-
-type clientConn struct {
-	conn *net.UDPConn
-	addr *net.UDPAddr
-	sess session
-}
-
-func (c *clientConn) init(addr *net.UDPAddr, h Handler) error {
-	conn, err := net.DialUDP("udp", nil, addr)
-	if err != nil {
-		return err
-	}
-
-	c.conn = conn
-	c.addr = addr
-	c.sess.init(conn, h, nil, conn.LocalAddr(), addr)
-	go c.reading()
-	return nil
-}
-
-func (c *clientConn) reading() {
-	buf := make([]byte, 1500)
-	for {
-		n, err := c.conn.Read(buf)
-		if err != nil {
-			continue
-		}
-		data := make([]byte, n)
-		copy(data, buf)
-		c.sess.recvData(data)
-	}
 }
