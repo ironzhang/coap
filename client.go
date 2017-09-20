@@ -23,14 +23,15 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	sess := newSession(conn, c.Handler, nil, conn.LocalAddr(), conn.RemoteAddr())
 
 	var closed int64
 	defer func() {
 		atomic.StoreInt64(&closed, 1)
 		conn.Close()
+		sess.Close()
 	}()
 
-	sess := newSession(conn, c.Handler, nil, conn.LocalAddr(), conn.RemoteAddr())
 	go func() {
 		var buf [1500]byte
 		for atomic.LoadInt64(&closed) == 0 {
