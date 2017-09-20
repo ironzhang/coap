@@ -5,10 +5,13 @@ import (
 	"net"
 	"net/url"
 	"sync/atomic"
+
+	"github.com/ironzhang/dtls"
 )
 
 type Client struct {
-	Handler Handler
+	Handler    Handler
+	DTLSConfig *dtls.Config
 }
 
 func (c *Client) SendRequest(req *Request) (*Response, error) {
@@ -48,10 +51,9 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 	return sess.postRequestAndWaitResponse(req)
 }
 
-func (c *Client) dialUDP(url *url.URL) (net.Conn, error) {
-	conn, err := net.Dial("udp", url.Host)
-	if err != nil {
-		return nil, err
+func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
+	if u.Scheme == "coaps" {
+		return dtls.Dial("udp", u.Host, c.DTLSConfig)
 	}
-	return conn, nil
+	return net.Dial("udp", u.Host)
 }
