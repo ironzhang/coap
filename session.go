@@ -100,8 +100,9 @@ type session struct {
 	observer   Observer
 	localAddr  net.Addr
 	remoteAddr net.Addr
+	scheme     string
 	host       string
-	port       uint16
+	port       uint32
 
 	lastRecvMutex sync.RWMutex
 	lastRecvTime  time.Time
@@ -117,21 +118,22 @@ type session struct {
 	respWaiters map[string]*responseWaiter
 }
 
-func newSession(w io.Writer, h Handler, o Observer, la, ra net.Addr) *session {
-	return new(session).init(w, h, o, la, ra)
+func newSession(w io.Writer, h Handler, o Observer, la, ra net.Addr, scheme string) *session {
+	return new(session).init(w, h, o, la, ra, scheme)
 }
 
-func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr) *session {
+func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr, scheme string) *session {
 	s.writer = w
 	s.handler = h
 	s.observer = o
 	s.localAddr = la
 	s.remoteAddr = ra
+	s.scheme = scheme
 	host, port, err := net.SplitHostPort(la.String())
 	if err == nil {
 		s.host = host
 		if n, err := strconv.ParseUint(port, 10, 16); err == nil {
-			s.port = uint16(n)
+			s.port = uint32(n)
 		}
 	}
 
@@ -638,14 +640,14 @@ func (s *session) lastRecvTimeExpired() bool {
 }
 
 func (s *session) parseURLFromOptions(options Options) (*url.URL, error) {
-	scheme := "coap"
+	scheme := s.scheme
 	host, ok := options.Get(URIHost).(string)
 	if !ok {
 		host = s.host
 	}
 	port, ok := options.Get(URIPort).(uint32)
 	if !ok {
-		port = uint32(s.port)
+		port = s.port
 	}
 	path := options.GetPath()
 	query := options.GetQuery()

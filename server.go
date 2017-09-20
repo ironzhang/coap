@@ -31,6 +31,7 @@ func ListenAndServeDTLS(network, address, certFile, keyFile string, h Handler, o
 type Server struct {
 	Handler    Handler  // 请求响应接口
 	Observer   Observer // 观察者接口
+	Scheme     string
 	DTLSConfig *dtls.Config
 
 	sessions gctable.Table
@@ -49,6 +50,7 @@ func (s *Server) ListenAndServe(network, address string) error {
 	}
 	defer ln.Close()
 
+	s.Scheme = "coap"
 	return s.Serve(ln)
 }
 
@@ -71,11 +73,19 @@ func (s *Server) ListenAndServeDTLS(network, address, certFile, keyFile string) 
 	}
 	defer ln.Close()
 
+	s.Scheme = "coaps"
 	return s.Serve(ln)
 }
 
 // Serve 提供COAP服务.
 func (s *Server) Serve(l net.PacketConn) error {
+	if s.Scheme == "" {
+		s.Scheme = "coap"
+	}
+	if s.Scheme != "coap" && s.Scheme != "coaps" {
+		return errors.New("invalid scheme")
+	}
+
 	buf := make([]byte, 1500)
 	for {
 		n, addr, err := l.ReadFrom(buf)
@@ -152,7 +162,7 @@ func (s *Server) addSession(conn net.PacketConn, addr net.Addr) *session {
 	if obj, ok := s.sessions.Get(addr.String()); ok {
 		return obj.(*session)
 	}
-	sess := newSession(&serverConn{conn: conn, addr: addr}, s.Handler, s.Observer, conn.LocalAddr(), addr)
+	sess := newSession(&serverConn{conn: conn, addr: addr}, s.Handler, s.Observer, conn.LocalAddr(), addr, s.Scheme)
 	s.sessions.Add(sess)
 	return sess
 }

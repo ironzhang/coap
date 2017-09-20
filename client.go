@@ -26,7 +26,7 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	sess := newSession(conn, c.Handler, nil, conn.LocalAddr(), conn.RemoteAddr())
+	sess := newSession(conn, c.Handler, nil, conn.LocalAddr(), conn.RemoteAddr(), req.URL.Scheme)
 
 	var closed int64
 	defer func() {
