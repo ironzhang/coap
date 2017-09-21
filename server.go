@@ -2,7 +2,6 @@ package coap
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"net"
 	"time"
@@ -10,6 +9,8 @@ import (
 	"github.com/ironzhang/coap/internal/gctable"
 	"github.com/ironzhang/dtls"
 )
+
+var ErrSessionNotFound = errors.New("session not found")
 
 // ListenAndServe 在指定地址端口监听并提供COAP服务.
 func ListenAndServe(network, address string, h Handler, o Observer) error {
@@ -113,7 +114,7 @@ func (s *Server) SendRequest(req *Request) (*Response, error) {
 	}
 	sess, ok := s.getSession(addr)
 	if !ok {
-		return nil, fmt.Errorf("session(%s) not found", addr)
+		return nil, ErrSessionNotFound
 	}
 	return sess.postRequestAndWaitResponse(req)
 }
@@ -153,7 +154,7 @@ func (s *Server) postRequestAndWaitAck(req *Request) error {
 	}
 	sess, ok := s.getSession(addr)
 	if !ok {
-		return fmt.Errorf("session(%s) not found", addr)
+		return ErrSessionNotFound
 	}
 	return sess.postRequestAndWaitAck(req)
 }

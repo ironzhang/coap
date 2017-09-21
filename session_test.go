@@ -3,7 +3,7 @@ package coap
 import "testing"
 
 func TestParseURLFromOptions(t *testing.T) {
-	s := session{host: "localhost", port: 5683}
+	s := session{scheme: "coap", host: "localhost", port: 5683}
 	tests := []struct {
 		options Options
 		scheme  string
