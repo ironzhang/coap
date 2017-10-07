@@ -160,12 +160,10 @@ func (s *Server) postRequestAndWaitAck(req *Request) error {
 }
 
 func (s *Server) addSession(conn net.PacketConn, addr net.Addr) *session {
-	if obj, ok := s.sessions.Get(addr.String()); ok {
-		return obj.(*session)
-	}
-	sess := newSession(&serverConn{conn: conn, addr: addr}, s.Handler, s.Observer, conn.LocalAddr(), addr, s.Scheme)
-	s.sessions.Add(sess)
-	return sess
+	obj := s.sessions.Add(addr.String(), func() gctable.Object {
+		return newSession(&serverConn{conn: conn, addr: addr}, s.Handler, s.Observer, conn.LocalAddr(), addr, s.Scheme)
+	})
+	return obj.(*session)
 }
 
 func (s *Server) getSession(addr net.Addr) (*session, bool) {

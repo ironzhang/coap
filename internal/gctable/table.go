@@ -1,7 +1,6 @@
 package gctable
 
 import (
-	"fmt"
 	"hash/crc32"
 	"sync"
 	"time"
@@ -26,9 +25,9 @@ type Table struct {
 	buckets []bucket
 }
 
-func (t *Table) Add(object Object) error {
-	b := t.getBucket(object.Key())
-	return b.add(object)
+func (t *Table) Add(key string, new func() Object) Object {
+	b := t.getBucket(key)
+	return b.add(key, new)
 }
 
 func (t *Table) Get(key string) (Object, bool) {
@@ -59,7 +58,7 @@ type bucket struct {
 	lastGC    time.Time
 }
 
-func (b *bucket) add(object Object) error {
+func (b *bucket) add(key string, alloc func() Object) Object {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -69,12 +68,12 @@ func (b *bucket) add(object Object) error {
 		b.threshold = 10
 		b.lastGC = time.Now()
 	}
-	k := object.Key()
-	if _, ok := b.m[k]; ok {
-		return fmt.Errorf("object(%s) is existing", k)
+	object, ok := b.m[key]
+	if !ok {
+		object = alloc()
+		b.m[key] = object
 	}
-	b.m[k] = object
-	return nil
+	return object
 }
 
 func (b *bucket) remove(key string) {

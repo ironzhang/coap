@@ -35,50 +35,50 @@ func (o *TestObject) ExecuteGC() {
 	o.gc = true
 }
 
-func MakeTestObjects(n int, timeout time.Duration) []Object {
-	objects := make([]Object, 0, n)
+func MakeTestKeys(n int) []string {
+	keys := make([]string, 0, n)
 	for i := 0; i < n; i++ {
-		objects = append(objects, NewTestObject(fmt.Sprint(i), timeout))
+		keys = append(keys, fmt.Sprint(i))
 	}
-	return objects
+	return keys
 }
 
-func BucketAddObjects(b *bucket, objects []Object) {
+func BucketAddObjects(b *bucket, keys []string, timeout time.Duration) {
 	var wg sync.WaitGroup
-	for _, o := range objects {
+	for _, key := range keys {
 		wg.Add(1)
-		go func(o Object) {
-			b.add(o)
+		go func(key string) {
+			b.add(key, func() Object { return NewTestObject(key, timeout) })
 			wg.Done()
-		}(o)
+		}(key)
 	}
 	wg.Wait()
 }
 
-func BucketRemoveObjects(b *bucket, objects []Object) {
+func BucketRemoveObjects(b *bucket, keys []string) {
 	var wg sync.WaitGroup
-	for _, o := range objects {
+	for _, key := range keys {
 		wg.Add(1)
-		go func(o Object) {
-			b.remove(o.Key())
+		go func(key string) {
+			b.remove(key)
 			wg.Done()
-		}(o)
+		}(key)
 	}
 	wg.Wait()
 }
 
-func BucketGetObjects(b *bucket, objects []Object) int {
+func BucketGetObjects(b *bucket, keys []string) int {
 	var count int64
 	var wg sync.WaitGroup
-	for _, o := range objects {
+	for _, key := range keys {
 		wg.Add(1)
-		go func(o Object) {
-			_, ok := b.get(o.Key())
+		go func(key string) {
+			_, ok := b.get(key)
 			if ok {
 				atomic.AddInt64(&count, 1)
 			}
 			wg.Done()
-		}(o)
+		}(key)
 	}
 	wg.Wait()
 	return int(count)
@@ -87,8 +87,8 @@ func BucketGetObjects(b *bucket, objects []Object) int {
 func TestBucketAdd(t *testing.T) {
 	var n = 10000
 	var b bucket
-	var objects = MakeTestObjects(n, time.Second)
-	BucketAddObjects(&b, objects)
+	var keys = MakeTestKeys(n)
+	BucketAddObjects(&b, keys, time.Second)
 	if got, want := len(b.m), n; got != want {
 		t.Errorf("object num: %d != %d", got, want)
 	}
@@ -97,9 +97,9 @@ func TestBucketAdd(t *testing.T) {
 func TestBucketRemove(t *testing.T) {
 	var n = 10000
 	var b bucket
-	var objects = MakeTestObjects(n, time.Second)
-	BucketAddObjects(&b, objects)
-	BucketRemoveObjects(&b, objects)
+	var keys = MakeTestKeys(n)
+	BucketAddObjects(&b, keys, time.Second)
+	BucketRemoveObjects(&b, keys)
 	if got, want := len(b.m), 0; got != want {
 		t.Errorf("object num: %d != %d", got, want)
 	}
@@ -108,9 +108,9 @@ func TestBucketRemove(t *testing.T) {
 func TestBucketGet(t *testing.T) {
 	var n = 10000
 	var b bucket
-	var objects = MakeTestObjects(n, time.Second)
-	BucketAddObjects(&b, objects)
-	count := BucketGetObjects(&b, objects)
+	var keys = MakeTestKeys(n)
+	BucketAddObjects(&b, keys, time.Second)
+	count := BucketGetObjects(&b, keys)
 	if got, want := count, n; got != want {
 		t.Errorf("object num: %d != %d", got, want)
 	}
@@ -119,8 +119,8 @@ func TestBucketGet(t *testing.T) {
 func TestBucketPerformGC(t *testing.T) {
 	var n = 10000
 	var b bucket
-	var objects = MakeTestObjects(n, time.Second/2)
-	BucketAddObjects(&b, objects)
+	var keys = MakeTestKeys(n)
+	BucketAddObjects(&b, keys, time.Second/2)
 	time.Sleep(time.Second)
 	b.performGC()
 	if got, want := len(b.m), 0; got != want {
@@ -134,8 +134,8 @@ func TestBucketGC(t *testing.T) {
 
 	var n = 10000
 	var b bucket
-	var objects = MakeTestObjects(n, time.Second/2)
-	BucketAddObjects(&b, objects)
+	var keys = MakeTestKeys(n)
+	BucketAddObjects(&b, keys, time.Second/2)
 	time.Sleep(time.Second)
 	b.gc()
 	if got, want := len(b.m), 0; got != want {
@@ -143,33 +143,31 @@ func TestBucketGC(t *testing.T) {
 	}
 }
 
-func TableAddObjects(t *Table, objects []Object) int {
+func TableAddObjects(t *Table, keys []string, timeout time.Duration) int {
 	var count int64
 	var wg sync.WaitGroup
-	for _, o := range objects {
+	for _, key := range keys {
 		wg.Add(1)
-		go func(o Object) {
-			if err := t.Add(o); err == nil {
-				atomic.AddInt64(&count, 1)
-			}
+		go func(key string) {
+			t.Add(key, func() Object { atomic.AddInt64(&count, 1); return NewTestObject(key, timeout) })
 			wg.Done()
-		}(o)
+		}(key)
 	}
 	wg.Wait()
 	return int(count)
 }
 
-func TableGetObjects(t *Table, objects []Object) int {
+func TableGetObjects(t *Table, keys []string) int {
 	var count int64
 	var wg sync.WaitGroup
-	for _, o := range objects {
+	for _, key := range keys {
 		wg.Add(1)
-		go func(o Object) {
-			if _, ok := t.Get(o.Key()); ok {
+		go func(key string) {
+			if _, ok := t.Get(key); ok {
 				atomic.AddInt64(&count, 1)
 			}
 			wg.Done()
-		}(o)
+		}(key)
 	}
 	wg.Wait()
 	return int(count)
@@ -181,15 +179,15 @@ func TestTable(t *testing.T) {
 
 	var tb Table
 	var n = 10000
-	var objects = MakeTestObjects(n, time.Second+500*time.Millisecond)
-	if got, want := TableAddObjects(&tb, objects), n; got != want {
+	var keys = MakeTestKeys(n)
+	if got, want := TableAddObjects(&tb, keys, time.Second+500*time.Millisecond), n; got != want {
 		t.Errorf("table add objects: %v != %v", got, want)
 	}
-	if got, want := TableGetObjects(&tb, objects), n; got != want {
+	if got, want := TableGetObjects(&tb, keys), n; got != want {
 		t.Errorf("table get objects: %v != %v", got, want)
 	}
 	time.Sleep(time.Second + 600*time.Millisecond)
-	if got, want := TableGetObjects(&tb, objects), 0; got != want {
+	if got, want := TableGetObjects(&tb, keys), 0; got != want {
 		t.Errorf("table get objects: %v != %v", got, want)
 	}
 }
