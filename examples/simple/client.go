@@ -16,13 +16,18 @@ func (h *Handler) ServeCOAP(w coap.ResponseWriter, r *coap.Request) {
 }
 
 func main() {
-	c := coap.Client{Handler: &Handler{}}
+	client := coap.Client{}
+	conn, err := client.Dial("coap://localhost:5683", &Handler{}, nil)
+	if err != nil {
+		log.Printf("dial: %v", err)
+		return
+	}
 	req, err := coap.NewRequest(true, coap.GET, "coap://localhost:5683/hello", []byte("hello, world"))
 	if err != nil {
 		log.Printf("new coap request: %v", err)
 		return
 	}
-	resp, err := c.SendRequest(req)
+	resp, err := conn.SendRequest(req)
 	if err != nil {
 		log.Printf("send coap request: %v", err)
 		return
