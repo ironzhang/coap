@@ -5,8 +5,6 @@ import (
 	"net"
 	"net/url"
 	"sync/atomic"
-
-	"github.com/ironzhang/dtls"
 )
 
 type Conn struct {
@@ -54,8 +52,7 @@ func (c *Conn) SendRequest(req *Request) (*Response, error) {
 }
 
 type Client struct {
-	Handler    Handler
-	DTLSConfig *dtls.Config
+	Handler Handler
 }
 
 func (c *Client) SendRequest(req *Request) (*Response, error) {
@@ -96,9 +93,6 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 }
 
 func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
-	if u.Scheme == "coaps" {
-		return dtls.Dial("udp", u.Host, c.DTLSConfig)
-	}
 	return net.Dial("udp", u.Host)
 }
 

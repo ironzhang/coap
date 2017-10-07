@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ironzhang/coap/internal/gctable"
-	"github.com/ironzhang/dtls"
 )
 
 var ErrSessionNotFound = errors.New("session not found")
@@ -20,20 +19,11 @@ func ListenAndServe(network, address string, h Handler, o Observer) error {
 	}).ListenAndServe(network, address)
 }
 
-// ListenAndServeDTLS 在指定地址端口监听并提供COAP服务, 由DTLS提供安全保证.
-func ListenAndServeDTLS(network, address, certFile, keyFile string, h Handler, o Observer) error {
-	return (&Server{
-		Handler:  h,
-		Observer: o,
-	}).ListenAndServeDTLS(network, address, certFile, keyFile)
-}
-
 // Server 定义了运行一个COAP Server的参数
 type Server struct {
-	Handler    Handler  // 请求响应接口
-	Observer   Observer // 观察者接口
-	Scheme     string
-	DTLSConfig *dtls.Config
+	Handler  Handler  // 请求响应接口
+	Observer Observer // 观察者接口
+	Scheme   string
 
 	sessions gctable.Table
 }
@@ -52,29 +42,6 @@ func (s *Server) ListenAndServe(network, address string) error {
 	defer ln.Close()
 
 	s.Scheme = "coap"
-	return s.Serve(ln)
-}
-
-// ListenAndServeDTLS 在指定地址端口监听并提供COAP服务, 由DTLS提供安全保证.
-func (s *Server) ListenAndServeDTLS(network, address, certFile, keyFile string) error {
-	config := cloneDTLSConfig(s.DTLSConfig)
-	if len(config.Certificates) <= 0 || certFile != "" || keyFile != "" {
-		cert, err := dtls.LoadCertificate(certFile, keyFile)
-		if err != nil {
-			return err
-		}
-		defer cert.Close()
-		config.Certificates = make([]dtls.Certificate, 1)
-		config.Certificates[0] = cert
-	}
-
-	ln, err := dtls.ListenUDP(network, address, config)
-	if err != nil {
-		return err
-	}
-	defer ln.Close()
-
-	s.Scheme = "coaps"
 	return s.Serve(ln)
 }
 
@@ -180,16 +147,4 @@ type serverConn struct {
 
 func (c *serverConn) Write(p []byte) (int, error) {
 	return c.conn.WriteTo(p, c.addr)
-}
-
-func cloneDTLSConfig(cfg *dtls.Config) *dtls.Config {
-	if cfg == nil {
-		return &dtls.Config{}
-	}
-	return &dtls.Config{
-		CA:           cfg.CA,
-		Certificates: cfg.Certificates,
-		Authmode:     cfg.Authmode,
-		ServerName:   cfg.ServerName,
-	}
 }
