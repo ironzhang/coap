@@ -54,7 +54,6 @@ func (c *Conn) SendRequest(req *Request) (*Response, error) {
 }
 
 type Client struct {
-	Handler    Handler
 	DTLSConfig *dtls.Config
 }
 
@@ -70,7 +69,7 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	sess := newSession(conn, c.Handler, nil, conn.LocalAddr(), conn.RemoteAddr(), req.URL.Scheme)
+	sess := newSession(conn, nil, nil, conn.LocalAddr(), conn.RemoteAddr(), req.URL.Scheme)
 
 	var closed int64
 	defer func() {
@@ -102,7 +101,7 @@ func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
 	return net.Dial("udp", u.Host)
 }
 
-func (c *Client) Dial(urlstr string) (*Conn, error) {
+func (c *Client) Dial(urlstr string, handler Handler, observer Observer) (*Conn, error) {
 	u, err := url.Parse(urlstr)
 	if err != nil {
 		return nil, err
@@ -111,5 +110,5 @@ func (c *Client) Dial(urlstr string) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newConn(u, nc, newSession(nc, c.Handler, nil, nc.LocalAddr(), nc.RemoteAddr(), u.Scheme)), nil
+	return newConn(u, nc, newSession(nc, handler, observer, nc.LocalAddr(), nc.RemoteAddr(), u.Scheme)), nil
 }
