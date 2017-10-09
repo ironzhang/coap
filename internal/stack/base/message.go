@@ -406,6 +406,9 @@ func (m *Message) Unmarshal(data []byte) (err error) {
 	if err = binary.Read(buf, binary.BigEndian, &h); err != nil {
 		return err
 	}
+	if version := h.Flags >> 6; version != 1 {
+		return errors.New("invalid version")
+	}
 	m.Type = (h.Flags >> 4) & 0x3
 	m.Code = h.Code
 	m.MessageID = h.MessageID
