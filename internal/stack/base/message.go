@@ -363,6 +363,9 @@ func (m *Message) Marshal() ([]byte, error) {
 	}
 
 	// token
+	if len(m.Token) > 8 {
+		return nil, errors.New("invalid token")
+	}
 	buf.WriteString(m.Token)
 
 	// options
@@ -415,6 +418,9 @@ func (m *Message) Unmarshal(data []byte) (err error) {
 
 	// token
 	tokenLen := int(h.Flags & 0x0f)
+	if tokenLen > 8 {
+		return errors.New("invalid token")
+	}
 	if buf.Len() < tokenLen {
 		return errors.New("truncated")
 	}
