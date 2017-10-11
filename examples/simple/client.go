@@ -22,6 +22,8 @@ func main() {
 		log.Printf("dial: %v", err)
 		return
 	}
+	defer conn.Close()
+
 	req, err := coap.NewRequest(true, coap.GET, "coap://localhost:5683/hello", []byte("hello, world"))
 	if err != nil {
 		log.Printf("new coap request: %v", err)
