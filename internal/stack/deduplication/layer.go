@@ -82,7 +82,8 @@ func (l *Layer) Recv(m base.Message) error {
 
 	case s.Type == base.CON && m.Type == base.CON:
 		// 正常分支，忽略或回复保存的消息
-		if msg, ok := s.GetMessage(); ok {
+		if msg, ok := s.GetMessage(); ok && (msg.Token == "" || msg.Token == m.Token) {
+			log.Printf("ack message(%s) for duplicate con message(%s)", msg, m)
 			if err := l.BaseLayer.Send(msg); err != nil {
 				log.Printf("send: %v", err)
 			}

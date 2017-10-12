@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
+	mrand "math/rand"
 	"net"
 	"net/url"
 	"strconv"
@@ -141,6 +143,7 @@ func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr, sche
 	s.servingc = make(chan func(), 8)
 	s.runningc = make(chan func(), 8)
 
+	s.seq = uint16(mrand.Uint32() % math.MaxUint16)
 	s.stack.Init(s, s, s.genMessageID)
 	s.ackWaiters = make(map[uint16]*ackWaiter)
 	s.respWaiters = make(map[string]*responseWaiter)
@@ -155,7 +158,7 @@ func (s *session) serving() {
 	for {
 		select {
 		case <-s.donec:
-			close(s.servingc)
+			close(s.runningc)
 			return
 		case f := <-s.servingc:
 			f()
@@ -169,7 +172,7 @@ func (s *session) running() {
 	for {
 		select {
 		case <-s.donec:
-			close(s.runningc)
+			close(s.servingc)
 			return
 		case f := <-s.runningc:
 			f()
@@ -651,5 +654,9 @@ func (s *session) parseURLFromOptions(options Options) (*url.URL, error) {
 	}
 	path := options.GetPath()
 	query := options.GetQuery()
-	return url.Parse(fmt.Sprintf("%s://%s:%d/%s?%s", scheme, host, port, path, query))
+	urlstr := fmt.Sprintf("%s://%s:%d/%s", scheme, host, port, path)
+	if len(query) > 0 {
+		urlstr = urlstr + "?" + query
+	}
+	return url.Parse(urlstr)
 }
