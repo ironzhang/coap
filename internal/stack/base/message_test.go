@@ -121,7 +121,7 @@ func TestBytesToOptionValue(t *testing.T) {
 		{IfMatch, []byte{}, []byte{}},
 		{IfMatch, []byte{'x'}, []byte{'x'}},
 		{URIHost, []byte{'x'}, "x"},
-		{IfNoneMatch, []byte{}, []byte{}},
+		{IfNoneMatch, []byte{}, struct{}{}},
 		{URIPort, []byte{0x03, 0x46}, uint32(838)},
 		{ContentFormat, []byte{0x03}, uint32(3)},
 	}
