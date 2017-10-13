@@ -45,8 +45,8 @@ func (c *Conn) SendRequest(req *Request) (*Response, error) {
 	if atomic.LoadInt64(&c.closed) != 0 {
 		return nil, errors.New("conn closed")
 	}
-	if c.url.Scheme != req.URL.Scheme || c.url.Host != req.URL.Host {
-		return nil, errors.New("url unmatch")
+	if c.url.Host != req.URL.Host {
+		return nil, errors.New("unacceptable host")
 	}
 	return c.sess.postRequestAndWaitResponse(req)
 }
