@@ -10,6 +10,7 @@ import (
 	"io"
 	"reflect"
 	"sort"
+	"strings"
 )
 
 // 消息格式
@@ -171,11 +172,32 @@ type Option struct {
 	Value interface{}
 }
 
-type Token string
+var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")
 
-func (t Token) String() string {
+// WriteOptions 以可读形式输出选项
+func WriteOptions(w io.Writer, options []Option) {
+	sort.Slice(options, func(i, j int) bool {
+		if options[i].ID == options[j].ID {
+			return i < j
+		}
+		return options[i].ID < options[j].ID
+	})
+
+	for _, o := range options {
+		s, ok := o.Value.(string)
+		if ok {
+			s = headerNewlineToSpace.Replace(s)
+			fmt.Fprintf(w, "%s: %s\r\n", OptionName(o.ID), s)
+		} else {
+			fmt.Fprintf(w, "%s: %v\r\n", OptionName(o.ID), o.Value)
+		}
+	}
+}
+
+// TokenString 返回可读的token字符串
+func TokenString(token string) string {
 	var buf bytes.Buffer
-	for _, b := range []byte(t) {
+	for _, b := range []byte(token) {
 		fmt.Fprintf(&buf, "%02x", b)
 	}
 	return buf.String()
@@ -195,15 +217,7 @@ func (m Message) String() string {
 	if len(m.Token) <= 0 {
 		return fmt.Sprintf("%s,%s,%d", TypeName(m.Type), CodeName(m.Code), m.MessageID)
 	}
-	return fmt.Sprintf("%s,%s,%d,%s", TypeName(m.Type), CodeName(m.Code), m.MessageID, m.visToken())
-}
-
-func (m Message) visToken() string {
-	var buf bytes.Buffer
-	for _, b := range []byte(m.Token) {
-		fmt.Fprintf(&buf, "%02x", b)
-	}
-	return buf.String()
+	return fmt.Sprintf("%s,%s,%d,%s", TypeName(m.Type), CodeName(m.Code), m.MessageID, TokenString(m.Token))
 }
 
 func (m *Message) AddOption(id uint16, v interface{}) {
@@ -292,9 +306,9 @@ func (m *Message) Marshal() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (m *Message) Unmarshal(data []byte) (err error) {
+func (m *Message) Unmarshal(data []byte) (unrecognized bool, err error) {
 	if len(data) < 4 {
-		return errors.New("short packet")
+		return false, errors.New("short packet")
 	}
 
 	buf := bytes.NewBuffer(data)
@@ -302,10 +316,10 @@ func (m *Message) Unmarshal(data []byte) (err error) {
 	// header
 	var h fixHeader
 	if err = binary.Read(buf, binary.BigEndian, &h); err != nil {
-		return err
+		return false, err
 	}
 	if version := h.Flags >> 6; version != 1 {
-		return errors.New("invalid version")
+		return false, errors.New("invalid version")
 	}
 	m.Type = (h.Flags >> 4) & 0x3
 	m.Code = h.Code
@@ -314,76 +328,62 @@ func (m *Message) Unmarshal(data []byte) (err error) {
 	// token
 	tokenLen := int(h.Flags & 0x0f)
 	if tokenLen > 8 {
-		return errors.New("invalid token")
+		return false, errors.New("invalid token")
 	}
 	if buf.Len() < tokenLen {
-		return errors.New("truncated")
+		return false, errors.New("truncated")
 	}
 	if tokenLen > 0 {
 		token := make([]byte, tokenLen)
 		if _, err = io.ReadFull(buf, token); err != nil {
-			return err
+			return false, err
 		}
 		m.Token = string(token)
 	}
 
 	// options
-	var prev uint16
+	var id uint16
 	var repeat int
 	dec := optionDecoder{r: buf}
 	for buf.Len() > 0 {
 		flag, err := buf.ReadByte()
 		if err != nil {
-			return err
+			return false, err
 		}
 		if flag == 0xff {
 			break
 		}
+
 		delta, data, err := dec.Decode(flag)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if delta == 0 {
 			repeat++
 		} else {
 			repeat = 1
+			id += uint16(delta)
 		}
 
-		id := prev + uint16(delta)
-		if recognized(id, data, repeat) || critical(id) {
-			val := bytesToOptionValue(id, data)
-			m.Options = append(m.Options, Option{ID: id, Value: val})
+		if !recognize(id, data, repeat) {
+			if !critical(id) {
+				continue
+			}
+			unrecognized = true
 		}
-		prev = id
+		val := bytesToOptionValue(id, data)
+		m.Options = append(m.Options, Option{ID: id, Value: val})
 	}
 
 	// payload
 	if buf.Len() > 0 {
 		m.Payload = make([]byte, buf.Len())
 		if _, err = io.ReadFull(buf, m.Payload); err != nil {
-			return err
+			return false, err
 		}
 	}
 
-	return nil
-}
-
-func critical(id uint16) bool {
-	return (id & 0x1) == 1
-}
-
-func recognized(id uint16, buf []byte, repeat int) bool {
-	def, ok := optionDefs[id]
-	if !ok {
-		return false
-	}
-	if n := len(buf); n < def.minlen || n > def.maxlen {
-		return false
-	}
-	if def.repeat > 0 && repeat > def.repeat {
-		return false
-	}
-	return true
+	return unrecognized, nil
 }
 
 func encodeUint8(v uint8) []byte {
@@ -612,4 +612,18 @@ func (d *optionDecoder) decodeUint16() uint32 {
 	}
 	x := binary.BigEndian.Uint16(b)
 	return uint32(x)
+}
+
+type MessageStringer struct {
+	WritePayload func(w io.Writer, payload []byte)
+}
+
+func (p *MessageStringer) MessageString(m Message) string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s\r\n", m.String())
+	WriteOptions(&buf, m.Options)
+	if p.WritePayload != nil {
+		p.WritePayload(&buf, m.Payload)
+	}
+	return buf.String()
 }

@@ -404,7 +404,7 @@ func (s *session) recvData(data []byte) {
 	s.lastRecvTimeUpdate()
 	s.runningc <- func() {
 		var m base.Message
-		if err := m.Unmarshal(data); err != nil {
+		if _, err := m.Unmarshal(data); err != nil {
 			log.Printf("message unmarshal: %v", err)
 			return
 		}

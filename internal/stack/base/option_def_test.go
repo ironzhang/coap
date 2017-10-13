@@ -48,3 +48,63 @@ func TestOptionDefs(t *testing.T) {
 		}
 	}
 }
+
+func TestCritical(t *testing.T) {
+	tests := []struct {
+		id uint16
+		C  bool
+	}{
+		{IfMatch, true},
+		{URIHost, true},
+		{ETag, false},
+		{IfNoneMatch, true},
+		{URIPort, true},
+		{LocationPath, false},
+		{URIPath, true},
+		{ContentFormat, false},
+		{MaxAge, false},
+		{URIQuery, true},
+		{Accept, true},
+		{LocationQuery, false},
+		{ProxyURI, true},
+		{ProxyScheme, true},
+		{Size1, false},
+		{Observe, false},
+		{Block2, true},
+		{Block1, true},
+		{Size2, false},
+	}
+	for _, tt := range tests {
+		if got, want := critical(tt.id), tt.C; got != want {
+			t.Errorf("%s option: %t != %t", OptionName(tt.id), got, want)
+		}
+	}
+}
+
+func TestRecognized(t *testing.T) {
+	RegisterOptionDef(0, 10, "", EmptyValue, 0, 0)
+	tests := []struct {
+		id         uint16
+		buf        []byte
+		repeat     int
+		recognized bool
+	}{
+		{0, make([]byte, 0), 1, true},
+		{0, make([]byte, 0), 10, true},
+		{IfMatch, make([]byte, 8), 1, true},
+		{IfMatch, make([]byte, 8), 100, true},
+		{URIHost, make([]byte, 255), 1, true},
+
+		{0, make([]byte, 1), 1, false},
+		{0, make([]byte, 0), 11, false},
+		{2, make([]byte, 0), 1, false},
+		{IfMatch, make([]byte, 9), 1, false},
+		{URIHost, make([]byte, 255), 2, false},
+	}
+	for i, tt := range tests {
+		if got, want := recognize(tt.id, tt.buf, tt.repeat), tt.recognized; got != want {
+			t.Errorf("case%d: %t != %t", i, got, want)
+		}
+	}
+	delete(optionDefs, 0)
+}

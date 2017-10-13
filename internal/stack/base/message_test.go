@@ -2,6 +2,8 @@ package base
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"reflect"
 	"testing"
 )
@@ -195,11 +197,48 @@ func TestOptionDecoder(t *testing.T) {
 	}
 }
 
+func TestTokenString(t *testing.T) {
+	tests := []struct {
+		token []byte
+		want  string
+	}{
+		{
+			token: []byte{},
+			want:  "",
+		},
+		{
+			token: []byte(""),
+			want:  "",
+		},
+		{
+			token: []byte{1},
+			want:  "01",
+		},
+		{
+			token: []byte{0, 1, 2, 3},
+			want:  "00010203",
+		},
+		{
+			token: []byte{10, 11},
+			want:  "0a0b",
+		},
+	}
+	for i, tt := range tests {
+		if got, want := TokenString(string(tt.token)), tt.want; got != want {
+			t.Errorf("case%d: %q != %q", i, got, want)
+		}
+	}
+}
+
 func TestMessageString(t *testing.T) {
 	tests := []struct {
 		m Message
 		s string
 	}{
+		{
+			m: Message{Type: ACK, Code: GET, MessageID: 1},
+			s: "Acknowledgement,GET,1",
+		},
 		{
 			m: Message{Type: ACK, Code: GET, MessageID: 1, Token: string([]byte{1, 2, 3, 4, 0xff})},
 			s: "Acknowledgement,GET,1,01020304ff",
@@ -209,6 +248,34 @@ func TestMessageString(t *testing.T) {
 		if got, want := tt.m.String(), tt.s; got != want {
 			t.Errorf("case%d: %q != %q", i, got, want)
 		}
+	}
+}
+
+func TestMessageStringer(t *testing.T) {
+	var buf bytes.Buffer
+	mser := MessageStringer{
+		WritePayload: func(w io.Writer, payload []byte) {
+			fmt.Fprintf(w, "%s\r\n", payload)
+		},
+	}
+
+	s := "Acknowledgement,Content,1,01020304\r\nUri-Path: ablecloud\r\nUri-Path: nb-iot\r\nContent-Format: 1\r\nhello, world\r\n"
+	m := Message{
+		Type:      ACK,
+		Code:      Content,
+		MessageID: 1,
+		Token:     string([]byte{1, 2, 3, 4}),
+		Options: []Option{
+			{ContentFormat, 1},
+			{URIPath, "ablecloud"},
+			{URIPath, "nb-iot"},
+		},
+		Payload: []byte("hello, world"),
+	}
+	//fmt.Fprintf(os.Stdout, "%s", mser.MessageString(m))
+	fmt.Fprintf(&buf, "%s", mser.MessageString(m))
+	if got, want := buf.String(), s; got != want {
+		t.Errorf("got:\n%swant:\n%s", got, want)
 	}
 }
 
@@ -357,13 +424,17 @@ func TestMessage(t *testing.T) {
 	}
 	for i, tt := range tests {
 		var m Message
-		err := m.Unmarshal(tt.b)
+		unrecognized, err := m.Unmarshal(tt.b)
 		if err != nil {
 			t.Fatalf("case%d: message unmarshal: %v", i, err)
 			continue
 		}
+		if got, want := unrecognized, false; got != want {
+			t.Errorf("case%d: unrecognized: got(%t) != want(%t)", i, got, want)
+			continue
+		}
 		if got, want := m, tt.m; !reflect.DeepEqual(got, want) {
-			t.Errorf("case%d: message unmarshal: got(%#v) != want(%#v)", i, got, want)
+			t.Errorf("case%d: message: got(%#v) != want(%#v)", i, got, want)
 			continue
 		}
 	}
@@ -383,10 +454,154 @@ func TestInvalidMessageParsing(t *testing.T) {
 	}
 	for _, data := range invalidPackets {
 		var m Message
-		if err := m.Unmarshal(data); err == nil {
+		if _, err := m.Unmarshal(data); err == nil {
 			t.Errorf("Unexpected success parsing short message (%#v): %v", data, m)
 		} else {
 			t.Logf("short message unmarshal: (%#v): %v", data, err)
+		}
+	}
+}
+
+func TestMessageParsing(t *testing.T) {
+	var mser MessageStringer
+	tests := []struct {
+		m1           Message
+		m2           Message
+		unrecognized bool
+	}{
+		{
+			m1: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: IfMatch, Value: []byte{1}},
+				},
+			},
+			m2: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: IfMatch, Value: []byte{1}},
+				},
+			},
+			unrecognized: false,
+		},
+
+		{
+			m1: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: IfMatch, Value: []byte{1}},
+					{ID: IfMatch, Value: []byte{2}},
+					{ID: IfMatch, Value: []byte{3}},
+				},
+			},
+			m2: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: IfMatch, Value: []byte{1}},
+					{ID: IfMatch, Value: []byte{2}},
+					{ID: IfMatch, Value: []byte{3}},
+				},
+			},
+			unrecognized: false,
+		},
+
+		{
+			m1: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: URIHost, Value: "1"},
+					{ID: URIHost, Value: "2"},
+				},
+			},
+			m2: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: URIHost, Value: "1"},
+					{ID: URIHost, Value: "2"},
+				},
+			},
+			unrecognized: true,
+		},
+
+		{
+			m1: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: ETag, Value: []byte("01234567")},
+					{ID: ETag, Value: []byte("01234567*")},
+				},
+			},
+			m2: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: ETag, Value: []byte("01234567")},
+				},
+			},
+			unrecognized: false,
+		},
+
+		{
+			m1: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: 9, Value: []byte("01234567")},
+				},
+			},
+			m2: Message{
+				Type:      CON,
+				Code:      GET,
+				MessageID: 12345,
+				Token:     "123456",
+				Options: []Option{
+					{ID: 9, Value: []byte("01234567")},
+				},
+			},
+			unrecognized: true,
+		},
+	}
+	for i, tt := range tests {
+		data, err := tt.m1.Marshal()
+		if err != nil {
+			t.Fatalf("case%d: message marshal: %v", i, err)
+		}
+
+		var m Message
+		unrecognized, err := m.Unmarshal(data)
+		if err != nil {
+			t.Fatalf("case%d: message unmarshal: %v", i, err)
+		}
+		if got, want := unrecognized, tt.unrecognized; got != want {
+			t.Fatalf("case%d: unrecognized: %v!= %v", i, got, want)
+		}
+		if got, want := m, tt.m2; !reflect.DeepEqual(got, want) {
+			t.Fatalf("case%d: message:\n%v!=\n%v", i, mser.MessageString(got), mser.MessageString(want))
 		}
 	}
 }

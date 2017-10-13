@@ -116,6 +116,24 @@ func OptionName(id uint16) string {
 	return fmt.Sprint(id)
 }
 
+func critical(id uint16) bool {
+	return (id & 0x1) == 1
+}
+
+func recognize(id uint16, buf []byte, repeat int) bool {
+	def, ok := optionDefs[id]
+	if !ok {
+		return false
+	}
+	if n := len(buf); n < def.minlen || n > def.maxlen {
+		return false
+	}
+	if def.repeat > 0 && repeat > def.repeat {
+		return false
+	}
+	return true
+}
+
 func init() {
 	RegisterOptionDef(IfMatch, 0, "If-Match", OpaqueValue, 0, 8)
 	RegisterOptionDef(URIHost, 1, "Uri-Host", StringValue, 1, 255)
