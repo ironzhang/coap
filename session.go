@@ -216,6 +216,119 @@ func (s *session) OnAckTimeout(m base.Message) {
 	}
 }
 
+func (s *session) recvData(data []byte) {
+	s.lastRecvTimeUpdate()
+	s.runningc <- func() {
+		var m base.Message
+		unrecognized, err := m.Unmarshal(data)
+		if err != nil {
+			log.Printf("message unmarshal: %v", err)
+			return
+		}
+		if Verbose == 2 {
+			var mser base.MessageStringer
+			log.Printf("recv: %s", mser.MessageString(m))
+			//log.Printf("recv: %s\n", m.String())
+		}
+
+		if unrecognized {
+			s.recvUnrecognized(m)
+		} else {
+			s.recvRecognized(m)
+		}
+	}
+}
+
+func (s *session) recvUnrecognized(m base.Message) {
+	switch m.Type {
+	case base.CON:
+		s.handleUnrecognizedCON(m)
+	case base.NON:
+		s.handleUnrecognizedNON(m)
+	case base.ACK:
+		log.Printf("ignore unrecognized ack message: %s", m.String())
+	}
+}
+
+func (s *session) handleUnrecognizedCON(m base.Message) {
+	if m.Code == 0 {
+		// 空消息
+		return
+	}
+
+	c := m.Code >> 5
+	switch {
+	case c == 0:
+		// 请求
+		if err := s.directSendBadOptionACK(m.MessageID, m.Token); err != nil {
+			log.Printf("direct send bad option ack: %v", err)
+			return
+		}
+
+	case c >= 2 && c <= 5:
+		// 响应
+		if err := s.directSendRST(m.MessageID); err != nil {
+			log.Printf("direct send rst: %v", err)
+			return
+		}
+
+	default:
+		// 保留
+		log.Printf("reserved code: %d.%d", c, m.Code&0x1f)
+	}
+}
+
+func (s *session) handleUnrecognizedNON(m base.Message) {
+	if m.Code == 0 {
+		// 空消息
+		return
+	}
+
+	c := m.Code >> 5
+	switch {
+	case c == 0:
+		// 请求
+		if err := s.directSendRST(m.MessageID); err != nil {
+			log.Printf("direct send rst: %v", err)
+			return
+		}
+
+	case c >= 2 && c <= 5:
+		// 响应
+		log.Printf("ignore unrecognized non message: %s", m.String())
+
+	default:
+		// 保留
+		log.Printf("reserved code: %d.%d", c, m.Code&0x1f)
+	}
+}
+
+func (s *session) directSendRST(messageID uint16) {
+	m := base.Message{
+		Type:      base.RST,
+		MessageID: messageID,
+	}
+	return s.Send(m)
+}
+
+func (s *session) directSendBadOptionACK(messageID uint16, token string) error {
+	payload := `Unrecognized options of class "critical" that occur in a Confirmable request`
+	m := base.Message{
+		Type:      base.ACK,
+		Code:      base.BadOption,
+		MessageID: messageID,
+		Token:     token,
+		Payload:   []byte(payload),
+	}
+	return s.Send(m)
+}
+
+func (s *session) recvRecognized(m base.Message) {
+	if err := s.stack.Recv(m); err != nil {
+		log.Printf("stack recv: %v", err)
+	}
+}
+
 func (s *session) Recv(m base.Message) error {
 	if Verbose == 1 {
 		log.Printf("recv: %s\n", m.String())
@@ -390,7 +503,9 @@ func (s *session) handleRST(m base.Message) {
 
 func (s *session) Send(m base.Message) error {
 	if Verbose == 2 {
-		log.Printf("send: %s\n", m.String())
+		var mser base.MessageStringer
+		log.Printf("send: %s", mser.MessageString(m))
+		//log.Printf("send: %s\n", m.String())
 	}
 	data, err := m.Marshal()
 	if err != nil {
@@ -398,27 +513,6 @@ func (s *session) Send(m base.Message) error {
 	}
 	_, err = s.writer.Write(data)
 	return err
-}
-
-func (s *session) recvData(data []byte) {
-	s.lastRecvTimeUpdate()
-	s.runningc <- func() {
-		var m base.Message
-		if _, err := m.Unmarshal(data); err != nil {
-			log.Printf("message unmarshal: %v", err)
-			return
-		}
-		s.recvMessage(m)
-	}
-}
-
-func (s *session) recvMessage(m base.Message) {
-	if Verbose == 2 {
-		log.Printf("recv: %s\n", m.String())
-	}
-	if err := s.stack.Recv(m); err != nil {
-		log.Printf("stack recv: %v", err)
-	}
 }
 
 func (s *session) postMessage(m base.Message) {
