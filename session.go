@@ -303,7 +303,7 @@ func (s *session) handleUnrecognizedNON(m base.Message) {
 	}
 }
 
-func (s *session) directSendRST(messageID uint16) {
+func (s *session) directSendRST(messageID uint16) error {
 	m := base.Message{
 		Type:      base.RST,
 		MessageID: messageID,
