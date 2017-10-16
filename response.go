@@ -12,7 +12,7 @@ type Response struct {
 	Options Options
 
 	// 消息令牌
-	Token string
+	Token Token
 
 	// 消息负载
 	Payload []byte

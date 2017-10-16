@@ -24,7 +24,7 @@ type Request struct {
 	URL *url.URL
 
 	// 消息令牌, 消息接收端使用, 发送端不应该使用该字段
-	Token string
+	Token Token
 
 	// 消息负载
 	Payload []byte

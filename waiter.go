@@ -65,7 +65,7 @@ func (w *responseWaiter) Wait() (*Response, error) {
 		Ack:     w.msg.Type == base.ACK,
 		Status:  Code(w.msg.Code),
 		Options: w.msg.Options,
-		Token:   w.msg.Token,
+		Token:   Token(w.msg.Token),
 		Payload: w.msg.Payload,
 	}, nil
 }

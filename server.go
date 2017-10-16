@@ -89,7 +89,7 @@ func (s *Server) SendRequest(req *Request) (*Response, error) {
 // Observe 订阅.
 //
 // token长度不能大于8个字节.
-func (s *Server) Observe(token, urlstr string, accept uint32) error {
+func (s *Server) Observe(token Token, urlstr string, accept uint32) error {
 	if len(token) > 8 {
 		return errors.New("invalid token")
 	}

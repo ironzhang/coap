@@ -392,7 +392,7 @@ func (s *session) handleRequest(m base.Message) {
 			Method:      Code(m.Code),
 			Options:     m.Options,
 			URL:         url,
-			Token:       m.Token,
+			Token:       Token(m.Token),
 			Payload:     m.Payload,
 			RemoteAddr:  s.remoteAddr,
 		}
@@ -433,7 +433,7 @@ func (s *session) handleObserveResponse(m base.Message) {
 			Ack:     m.Type == base.ACK,
 			Status:  Code(m.Code),
 			Options: m.Options,
-			Token:   m.Token,
+			Token:   Token(m.Token),
 			Payload: m.Payload,
 		}
 		s.observer.ServeObserve(resp)
@@ -483,7 +483,7 @@ func (s *session) handleObserveACK(m base.Message) {
 			Ack:     m.Type == base.ACK,
 			Status:  Code(m.Code),
 			Options: m.Options,
-			Token:   m.Token,
+			Token:   Token(m.Token),
 			Payload: m.Payload,
 		}
 		s.observer.ServeObserve(resp)
@@ -643,7 +643,7 @@ func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) err
 		m.Type = base.CON
 	}
 	if r.useToken {
-		m.Token = r.Token
+		m.Token = string(r.Token)
 	} else {
 		m.Token = s.genToken()
 	}

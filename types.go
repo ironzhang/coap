@@ -68,3 +68,10 @@ const (
 	ProxyScheme   = base.ProxyScheme
 	Size1         = base.Size1
 )
+
+// Token 消息令牌
+type Token string
+
+func (t Token) String() string {
+	return base.TokenString(string(t))
+}
