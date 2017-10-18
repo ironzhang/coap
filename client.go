@@ -48,7 +48,7 @@ func (c *Conn) SendRequest(req *Request) (*Response, error) {
 	if c.url.Host != req.URL.Host {
 		return nil, errors.New("unacceptable host")
 	}
-	return c.sess.postRequestAndWaitResponse(req)
+	return c.sess.postRequestWithCache(req)
 }
 
 type Client struct {

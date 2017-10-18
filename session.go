@@ -19,7 +19,10 @@ import (
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
-var Verbose = 1
+var (
+	Verbose     = 1
+	EnableCache = true
+)
 
 var (
 	ErrReset      = errors.New("wait response reset by peer")
@@ -108,6 +111,7 @@ type session struct {
 
 	lastRecvMutex sync.RWMutex
 	lastRecvTime  time.Time
+	cache         cache
 
 	donec    chan struct{}
 	servingc chan func()
@@ -619,6 +623,21 @@ func (s *session) postRequestAndWaitResponse(r *Request) (*Response, error) {
 		}
 	}
 	return w.Wait()
+}
+
+func (s *session) postRequestWithCache(req *Request) (*Response, error) {
+	if !EnableCache {
+		return s.postRequestAndWaitResponse(req)
+	}
+	if resp, ok := s.cache.Get(req); ok {
+		return resp, nil
+	}
+	resp, err := s.postRequestAndWaitResponse(req)
+	if err != nil {
+		return nil, err
+	}
+	s.cache.Add(req, resp)
+	return resp, nil
 }
 
 func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) error {

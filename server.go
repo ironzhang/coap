@@ -83,7 +83,7 @@ func (s *Server) SendRequest(req *Request) (*Response, error) {
 	if !ok {
 		return nil, ErrSessionNotFound
 	}
-	return sess.postRequestAndWaitResponse(req)
+	return sess.postRequestWithCache(req)
 }
 
 // Observe 订阅.
