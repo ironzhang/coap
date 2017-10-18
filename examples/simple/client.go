@@ -24,15 +24,17 @@ func main() {
 	}
 	defer conn.Close()
 
-	req, err := coap.NewRequest(true, coap.GET, "coap://localhost:5683/hello", []byte("hello, world"))
-	if err != nil {
-		log.Printf("new coap request: %v", err)
-		return
+	for i := 0; i < 2; i++ {
+		req, err := coap.NewRequest(true, coap.GET, "coap://localhost:5683/hello", []byte("hello, world"))
+		if err != nil {
+			log.Printf("new coap request: %v", err)
+			return
+		}
+		resp, err := conn.SendRequest(req)
+		if err != nil {
+			log.Printf("send coap request: %v", err)
+			return
+		}
+		log.Printf("%s\n", resp.Payload)
 	}
-	resp, err := conn.SendRequest(req)
-	if err != nil {
-		log.Printf("send coap request: %v", err)
-		return
-	}
-	log.Printf("%s\n", resp.Payload)
 }
