@@ -75,7 +75,7 @@ func TestCritical(t *testing.T) {
 		{Size2, false},
 	}
 	for _, tt := range tests {
-		if got, want := critical(tt.id), tt.C; got != want {
+		if got, want := Critical(tt.id), tt.C; got != want {
 			t.Errorf("%s option: %t != %t", OptionName(tt.id), got, want)
 		}
 	}

@@ -366,7 +366,7 @@ func (m *Message) Unmarshal(data []byte) (unrecognized bool, err error) {
 		}
 
 		if !recognize(id, data, repeat) {
-			if !critical(id) {
+			if !Critical(id) {
 				continue
 			}
 			unrecognized = true

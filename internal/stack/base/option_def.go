@@ -116,8 +116,16 @@ func OptionName(id uint16) string {
 	return fmt.Sprint(id)
 }
 
-func critical(id uint16) bool {
-	return (id & 0x1) == 1
+func Critical(id uint16) bool {
+	return (id & 1) == 1
+}
+
+func UnSafe(id uint16) bool {
+	return (id & 2) == 2
+}
+
+func NoCacheKey(id uint16) bool {
+	return (id & 0x1e) == 0x1c
 }
 
 func recognize(id uint16, buf []byte, repeat int) bool {
