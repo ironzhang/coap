@@ -75,3 +75,19 @@ type Token string
 func (t Token) String() string {
 	return base.TokenString(string(t))
 }
+
+const (
+	EmptyValue  = base.EmptyValue
+	UintValue   = base.UintValue
+	StringValue = base.StringValue
+	OpaqueValue = base.OpaqueValue
+)
+
+// RegisterOptionDef 注册选项定义.
+//
+// repeat参数定义了一个消息最多可包含多少个该选项, <=0则不做限制.
+//
+// 若重复注册同一编号的选项定义则会引发panic.
+func RegisterOptionDef(id uint16, repeat int, name string, format, minlen, maxlen int) {
+	base.RegisterOptionDef(id, repeat, name, format, minlen, maxlen)
+}
