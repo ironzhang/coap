@@ -23,7 +23,6 @@ func ListenAndServe(network, address string, h Handler, o Observer) error {
 type Server struct {
 	Handler  Handler  // 请求响应接口
 	Observer Observer // 观察者接口
-	Scheme   string
 
 	sessions gctable.Table
 }
@@ -41,16 +40,15 @@ func (s *Server) ListenAndServe(network, address string) error {
 	}
 	defer ln.Close()
 
-	s.Scheme = "coap"
-	return s.Serve(ln)
+	return s.Serve("coap", ln)
 }
 
 // Serve 提供COAP服务.
-func (s *Server) Serve(l net.PacketConn) error {
-	if s.Scheme == "" {
-		s.Scheme = "coap"
+func (s *Server) Serve(scheme string, l net.PacketConn) error {
+	if scheme == "" {
+		scheme = "coap"
 	}
-	if s.Scheme != "coap" && s.Scheme != "coaps" {
+	if scheme != "coap" && scheme != "coaps" {
 		return errors.New("invalid scheme")
 	}
 
@@ -69,7 +67,7 @@ func (s *Server) Serve(l net.PacketConn) error {
 		}
 		data := make([]byte, n)
 		copy(data, buf)
-		s.addSession(l, addr).recvData(data)
+		s.addSession(scheme, l, addr).recvData(data)
 	}
 }
 
@@ -126,9 +124,9 @@ func (s *Server) postRequestAndWaitAck(req *Request) error {
 	return sess.postRequestAndWaitAck(req)
 }
 
-func (s *Server) addSession(conn net.PacketConn, addr net.Addr) *session {
+func (s *Server) addSession(scheme string, conn net.PacketConn, addr net.Addr) *session {
 	obj := s.sessions.Add(addr.String(), func() gctable.Object {
-		return newSession(&serverConn{conn: conn, addr: addr}, s.Handler, s.Observer, conn.LocalAddr(), addr, s.Scheme)
+		return newSession(&serverConn{conn: conn, addr: addr}, s.Handler, s.Observer, conn.LocalAddr(), addr, scheme)
 	})
 	return obj.(*session)
 }
