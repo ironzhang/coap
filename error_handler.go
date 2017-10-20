@@ -62,7 +62,7 @@ func sendRSTHandler(s *session, m base.Message, e error) error {
 	return s.directSendRST(m.MessageID)
 }
 
-func sendBadOptionACKHandler(s *session, m base.Message, err error) error {
+func sendBadOptionACKHandler(s *session, m base.Message, e error) error {
 	return s.directSendBadOptionACK(m.MessageID, m.Token)
 }
 
