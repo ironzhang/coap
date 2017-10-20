@@ -306,9 +306,9 @@ func (m *Message) Marshal() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (m *Message) Unmarshal(data []byte) (unrecognized bool, err error) {
+func (m *Message) Unmarshal(data []byte) (err error) {
 	if len(data) < 4 {
-		return false, errors.New("short packet")
+		return errors.New("short packet")
 	}
 
 	buf := bytes.NewBuffer(data)
@@ -316,10 +316,10 @@ func (m *Message) Unmarshal(data []byte) (unrecognized bool, err error) {
 	// header
 	var h fixHeader
 	if err = binary.Read(buf, binary.BigEndian, &h); err != nil {
-		return false, err
+		return err
 	}
 	if version := h.Flags >> 6; version != 1 {
-		return false, errors.New("invalid version")
+		return errors.New("invalid version")
 	}
 	m.Type = (h.Flags >> 4) & 0x3
 	m.Code = h.Code
@@ -328,15 +328,15 @@ func (m *Message) Unmarshal(data []byte) (unrecognized bool, err error) {
 	// token
 	tokenLen := int(h.Flags & 0x0f)
 	if tokenLen > 8 {
-		return false, errors.New("invalid token")
+		return messageFormatError{"token length too long"}
 	}
 	if buf.Len() < tokenLen {
-		return false, errors.New("truncated")
+		return messageFormatError{"token truncated"}
 	}
 	if tokenLen > 0 {
 		token := make([]byte, tokenLen)
 		if _, err = io.ReadFull(buf, token); err != nil {
-			return false, err
+			return err
 		}
 		m.Token = string(token)
 	}
@@ -344,11 +344,12 @@ func (m *Message) Unmarshal(data []byte) (unrecognized bool, err error) {
 	// options
 	var id uint16
 	var repeat int
+	var unrecognized bool
 	dec := optionDecoder{r: buf}
 	for buf.Len() > 0 {
 		flag, err := buf.ReadByte()
 		if err != nil {
-			return false, err
+			return err
 		}
 		if flag == 0xff {
 			break
@@ -356,7 +357,7 @@ func (m *Message) Unmarshal(data []byte) (unrecognized bool, err error) {
 
 		delta, data, err := dec.Decode(flag)
 		if err != nil {
-			return false, err
+			return err
 		}
 		if delta == 0 {
 			repeat++
@@ -379,11 +380,14 @@ func (m *Message) Unmarshal(data []byte) (unrecognized bool, err error) {
 	if buf.Len() > 0 {
 		m.Payload = make([]byte, buf.Len())
 		if _, err = io.ReadFull(buf, m.Payload); err != nil {
-			return false, err
+			return err
 		}
 	}
 
-	return unrecognized, nil
+	if unrecognized {
+		return badOptionsError{`Unrecognized options of class "critical" that occur in a Confirmable request`}
+	}
+	return nil
 }
 
 func encodeUint8(v uint8) []byte {

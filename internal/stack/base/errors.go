@@ -22,3 +22,41 @@ func (e Error) Error() string {
 	}
 	return fmt.Sprintf("%s: %v", e.Layer, e.Cause)
 }
+
+var _ MessageFormatError = messageFormatError{}
+
+type MessageFormatError interface {
+	error
+	FormatError() bool
+}
+
+type messageFormatError struct {
+	err string
+}
+
+func (e messageFormatError) Error() string {
+	return e.err
+}
+
+func (e messageFormatError) FormatError() bool {
+	return true
+}
+
+var _ BadOptionsError = badOptionsError{}
+
+type BadOptionsError interface {
+	error
+	BadOptions() bool
+}
+
+type badOptionsError struct {
+	err string
+}
+
+func (e badOptionsError) Error() string {
+	return e.err
+}
+
+func (e badOptionsError) BadOptions() bool {
+	return true
+}

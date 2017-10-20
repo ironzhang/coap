@@ -424,13 +424,9 @@ func TestMessage(t *testing.T) {
 	}
 	for i, tt := range tests {
 		var m Message
-		unrecognized, err := m.Unmarshal(tt.b)
+		err := m.Unmarshal(tt.b)
 		if err != nil {
 			t.Fatalf("case%d: message unmarshal: %v", i, err)
-			continue
-		}
-		if got, want := unrecognized, false; got != want {
-			t.Errorf("case%d: unrecognized: got(%t) != want(%t)", i, got, want)
 			continue
 		}
 		if got, want := m, tt.m; !reflect.DeepEqual(got, want) {
@@ -454,7 +450,7 @@ func TestInvalidMessageParsing(t *testing.T) {
 	}
 	for _, data := range invalidPackets {
 		var m Message
-		if _, err := m.Unmarshal(data); err == nil {
+		if err := m.Unmarshal(data); err == nil {
 			t.Errorf("Unexpected success parsing short message (%#v): %v", data, m)
 		} else {
 			t.Logf("short message unmarshal: (%#v): %v", data, err)
@@ -465,9 +461,9 @@ func TestInvalidMessageParsing(t *testing.T) {
 func TestMessageParsing(t *testing.T) {
 	var mser MessageStringer
 	tests := []struct {
-		m1           Message
-		m2           Message
-		unrecognized bool
+		m1         Message
+		m2         Message
+		badOptions bool
 	}{
 		{
 			m1: Message{
@@ -488,7 +484,7 @@ func TestMessageParsing(t *testing.T) {
 					{ID: IfMatch, Value: []byte{1}},
 				},
 			},
-			unrecognized: false,
+			badOptions: false,
 		},
 
 		{
@@ -514,7 +510,7 @@ func TestMessageParsing(t *testing.T) {
 					{ID: IfMatch, Value: []byte{3}},
 				},
 			},
-			unrecognized: false,
+			badOptions: false,
 		},
 
 		{
@@ -538,7 +534,7 @@ func TestMessageParsing(t *testing.T) {
 					{ID: URIHost, Value: "2"},
 				},
 			},
-			unrecognized: true,
+			badOptions: true,
 		},
 
 		{
@@ -561,7 +557,7 @@ func TestMessageParsing(t *testing.T) {
 					{ID: ETag, Value: []byte("01234567")},
 				},
 			},
-			unrecognized: false,
+			badOptions: false,
 		},
 
 		{
@@ -583,7 +579,7 @@ func TestMessageParsing(t *testing.T) {
 					{ID: 9, Value: []byte("01234567")},
 				},
 			},
-			unrecognized: true,
+			badOptions: true,
 		},
 	}
 	for i, tt := range tests {
@@ -593,11 +589,16 @@ func TestMessageParsing(t *testing.T) {
 		}
 
 		var m Message
-		unrecognized, err := m.Unmarshal(data)
+		var badOptions bool
+		err = m.Unmarshal(data)
 		if err != nil {
-			t.Fatalf("case%d: message unmarshal: %v", i, err)
+			if e, ok := err.(BadOptionsError); ok {
+				badOptions = e.BadOptions()
+			} else {
+				t.Fatalf("case%d: message unmarshal: %v", i, err)
+			}
 		}
-		if got, want := unrecognized, tt.unrecognized; got != want {
+		if got, want := badOptions, tt.badOptions; got != want {
 			t.Fatalf("case%d: unrecognized: %v!= %v", i, got, want)
 		}
 		if got, want := m, tt.m2; !reflect.DeepEqual(got, want) {
