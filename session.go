@@ -164,8 +164,10 @@ func (s *session) serving() {
 		case <-s.donec:
 			close(s.runningc)
 			return
-		case f := <-s.servingc:
-			f()
+		case f, ok := <-s.servingc:
+			if ok {
+				f()
+			}
 		}
 	}
 }
@@ -178,8 +180,10 @@ func (s *session) running() {
 		case <-s.donec:
 			close(s.servingc)
 			return
-		case f := <-s.runningc:
-			f()
+		case f, ok := <-s.runningc:
+			if ok {
+				f()
+			}
 		case <-t.C:
 			s.update()
 		}
