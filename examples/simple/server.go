@@ -11,9 +11,9 @@ type Server struct {
 	svr coap.Server
 }
 
-func (s *Server) ListenAndServe(network, address string) error {
+func (s *Server) ListenAndServe(address string) error {
 	s.svr.Handler = s
-	return s.svr.ListenAndServe(network, address)
+	return s.svr.ListenAndServe(address)
 }
 
 func (s *Server) ServeCOAP(w coap.ResponseWriter, r *coap.Request) {
@@ -36,7 +36,7 @@ func (s *Server) ServeCOAP(w coap.ResponseWriter, r *coap.Request) {
 
 func main() {
 	var s Server
-	if err := s.ListenAndServe("udp", ":5683"); err != nil {
+	if err := s.ListenAndServe(":5683"); err != nil {
 		log.Fatal(err)
 	}
 }

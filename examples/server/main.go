@@ -16,7 +16,7 @@ func (h Handler) ServeCOAP(w coap.ResponseWriter, r *coap.Request) {
 
 func main() {
 	coap.Verbose = 2
-	if err := coap.ListenAndServe("udp", ":5683", Handler{}, nil); err != nil {
+	if err := coap.ListenAndServe(":5683", Handler{}, nil); err != nil {
 		log.Fatal(err)
 	}
 }

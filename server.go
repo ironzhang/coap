@@ -12,11 +12,11 @@ import (
 var ErrSessionNotFound = errors.New("session not found")
 
 // ListenAndServe 在指定地址端口监听并提供COAP服务.
-func ListenAndServe(network, address string, h Handler, o Observer) error {
+func ListenAndServe(address string, h Handler, o Observer) error {
 	return (&Server{
 		Handler:  h,
 		Observer: o,
-	}).ListenAndServe(network, address)
+	}).ListenAndServe(address)
 }
 
 // Server 定义了运行一个COAP Server的参数
@@ -28,13 +28,13 @@ type Server struct {
 }
 
 // ListenAndServe 在指定地址端口监听并提供COAP服务.
-func (s *Server) ListenAndServe(network, address string) error {
-	addr, err := net.ResolveUDPAddr(network, address)
+func (s *Server) ListenAndServe(address string) error {
+	addr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return err
 	}
 
-	ln, err := net.ListenUDP(network, addr)
+	ln, err := net.ListenUDP("udp", addr)
 	if err != nil {
 		return err
 	}

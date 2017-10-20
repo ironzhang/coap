@@ -20,5 +20,5 @@ func (h Handler) ServeCOAP(w coap.ResponseWriter, r *coap.Request) {
 }
 
 func main() {
-	coap.ListenAndServe("udp", ":5683", Handler{}, nil)
+	coap.ListenAndServe(":5683", Handler{}, nil)
 }
