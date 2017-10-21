@@ -2,6 +2,7 @@ package coap_test
 
 import (
 	"log"
+	"sync"
 	"testing"
 
 	"github.com/ironzhang/coap"
@@ -19,9 +20,12 @@ func ListenAndServeTestCOAP(addr string) {
 	}
 }
 
-func TestCOAP(t *testing.T) {
+func init() {
+	coap.Verbose = 0
 	go ListenAndServeTestCOAP(":5683")
+}
 
+func TestCOAP(t *testing.T) {
 	tests := []struct {
 		confirmable bool
 		method      coap.Code
@@ -57,4 +61,38 @@ func TestCOAP(t *testing.T) {
 			t.Errorf("case%d: response payload: %v != %v", i, got, want)
 		}
 	}
+}
+
+func BenchmarkSerialSendRequest(b *testing.B) {
+	payload := []byte("hello")
+	for i := 0; i < b.N; i++ {
+		req, err := coap.NewRequest(true, coap.POST, "coap://localhost", payload)
+		if err != nil {
+			b.Fatalf("coap new request: %v", err)
+		}
+		_, err = coap.DefaultClient.SendRequest(req)
+		if err != nil {
+			b.Fatalf("coap send request: %v", err)
+		}
+	}
+}
+
+func BenchmarkParallelSendRequest(b *testing.B) {
+	payload := []byte("hello")
+	var wg sync.WaitGroup
+	for i := 0; i < b.N; i++ {
+		req, err := coap.NewRequest(true, coap.POST, "coap://localhost", payload)
+		if err != nil {
+			b.Fatalf("coap new request: %v", err)
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := coap.DefaultClient.SendRequest(req)
+			if err != nil {
+				b.Fatalf("coap send request: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
 }
