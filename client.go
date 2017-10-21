@@ -54,6 +54,8 @@ func (c *Conn) SendRequest(req *Request) (*Response, error) {
 type Client struct {
 }
 
+var DefaultClient = &Client{}
+
 func (c *Client) SendRequest(req *Request) (*Response, error) {
 	if req.URL == nil {
 		return nil, errors.New("coap: nil Request.URL")
