@@ -9,7 +9,6 @@ import (
 )
 
 var (
-	ErrStateNotFound = errors.New("not found message state")
 	ErrAckNonMessage = errors.New("non message not need ack")
 	ErrMessageSaved  = errors.New("message already saved")
 )
@@ -113,7 +112,7 @@ func (l *Layer) Send(m base.Message) error {
 	// 保存消息
 	s, ok := l.getState(m.MessageID)
 	if !ok {
-		return l.BaseLayer.NewError(ErrStateNotFound)
+		return l.BaseLayer.Send(m)
 	}
 	if s.Type == base.NON && m.Type == base.ACK {
 		// NON消息不可能有ACK
