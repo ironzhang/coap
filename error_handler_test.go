@@ -11,7 +11,7 @@ import (
 	"github.com/ironzhang/coap/internal/stack/base"
 )
 
-func NewTestSession(w io.Writer) *session {
+func NewErrorHandlerSession(w io.Writer) *session {
 	la, err := net.ResolveUDPAddr("udp", "localhost:5683")
 	if err != nil {
 		panic(err)
@@ -99,7 +99,7 @@ func TestMessageErrorHandler(t *testing.T) {
 	}
 	for i, tt := range tests {
 		var b bytes.Buffer
-		s := NewTestSession(&b)
+		s := NewErrorHandlerSession(&b)
 		messageFormatErrorHandler.handle(s, tt.in, errors.New("message format error"))
 		if tt.ignore {
 			if b.Len() != 0 {
@@ -196,7 +196,7 @@ func TestBadOptionsErrorHandler(t *testing.T) {
 	}
 	for i, tt := range tests {
 		var b bytes.Buffer
-		s := NewTestSession(&b)
+		s := NewErrorHandlerSession(&b)
 		badOptionsErrorHandler.handle(s, tt.in, errors.New("bad options error"))
 		if tt.ignore {
 			if b.Len() != 0 {
