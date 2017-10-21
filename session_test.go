@@ -3,7 +3,6 @@ package coap
 import (
 	"bytes"
 	"io"
-	"log"
 	"net"
 	"reflect"
 	"testing"
@@ -100,7 +99,7 @@ func TestParseURLFromOptions(t *testing.T) {
 type TestSessionHandler struct{}
 
 func (h TestSessionHandler) ServeCOAP(w ResponseWriter, r *Request) {
-	log.Printf("%s", r.Payload)
+	//log.Printf("%s", r.Payload)
 	w.Write(r.Payload)
 }
 
@@ -137,13 +136,30 @@ func TestSessionRecvRequest(t *testing.T) {
 				Payload:   []byte("hello, world"),
 			},
 		},
+		{
+			in: base.Message{
+				Type:      base.NON,
+				Code:      base.PUT,
+				MessageID: 1,
+				Token:     "1",
+				Payload:   []byte("hello, world"),
+			},
+			out: base.Message{
+				Type:      base.NON,
+				Code:      base.Content,
+				MessageID: 101,
+				Token:     "1",
+				Payload:   []byte("hello, world"),
+			},
+		},
 	}
 	for i, tt := range tests {
 		var b bytes.Buffer
 		var m base.Message
 		s := NewTestSession(&b)
+		s.seq = 100
 		s.Recv(tt.in)
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 		if err := m.Unmarshal(b.Bytes()); err != nil {
 			t.Fatalf("case%d: message unmarshal: %v", i, err)
 		}
@@ -153,5 +169,72 @@ func TestSessionRecvRequest(t *testing.T) {
 	}
 }
 
+type TestSessionWriter struct {
+	s *session
+}
+
+func (w *TestSessionWriter) Write(p []byte) (n int, err error) {
+	var m base.Message
+	if err = m.Unmarshal(p); err != nil {
+		return 0, err
+	}
+	if m.Type == base.CON || m.Type == base.NON {
+		m.Code = base.Content
+		if m.Type == base.CON {
+			m.Type = base.ACK
+		}
+		go w.s.Recv(m)
+	}
+	return len(p), nil
+}
+
 func TestSessionSendRequest(t *testing.T) {
+	var w TestSessionWriter
+	s := NewTestSession(&w)
+	w.s = s
+
+	tests := []struct {
+		req  Request
+		resp Response
+	}{
+		{
+			req: Request{
+				Confirmable: true,
+				Method:      PUT,
+				Token:       "1",
+				Payload:     []byte("hello, world"),
+				useToken:    true,
+			},
+			resp: Response{
+				Ack:     true,
+				Status:  Content,
+				Token:   "1",
+				Payload: []byte("hello, world"),
+			},
+		},
+		{
+			req: Request{
+				Confirmable: false,
+				Method:      PUT,
+				Token:       "1",
+				Payload:     []byte("hello, world"),
+				useToken:    true,
+			},
+			resp: Response{
+				Ack:     false,
+				Status:  Content,
+				Token:   "1",
+				Payload: []byte("hello, world"),
+			},
+		},
+	}
+	for i, tt := range tests {
+		resp, err := s.postRequestAndWaitResponse(&tt.req)
+		if err != nil {
+			t.Fatalf("case%d: post request and wait response: %v", i, err)
+		}
+		if got, want := *resp, tt.resp; !reflect.DeepEqual(got, want) {
+			t.Fatalf("case%d: %v != %v", i, got, want)
+		}
+	}
 }
