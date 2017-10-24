@@ -13,7 +13,7 @@ import (
 func init() {
 	coap.Verbose = 0
 	coap.EnableCache = false
-	go ListenAndServeTestCOAP(":5683")
+	//go ListenAndServeTestCOAP(":5683")
 }
 
 type TestCOAPHandler struct{}
@@ -143,6 +143,72 @@ func BenchmarkConnParallelSendRequest(b *testing.B) {
 			}
 			//fmt.Fprintf(os.Stdout, "%s\n", resp.Payload)
 			fmt.Fprintf(ioutil.Discard, "%s\n", resp.Payload)
+		}()
+	}
+	wg.Wait()
+}
+
+func BenchmarkMultiConnSerialSendRequest(b *testing.B) {
+	N := 1000
+	P := []byte("hello")
+
+	var wg sync.WaitGroup
+	for i := 0; i < N; i++ {
+		conn, err := coap.DefaultClient.Dial("coap://localhost:5683", nil, nil)
+		if err != nil {
+			b.Fatalf("coap dial: %v", err)
+		}
+		defer conn.Close()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < b.N; i++ {
+				req, err := coap.NewRequest(true, coap.POST, "coap://localhost/ping", P)
+				if err != nil {
+					log.Fatalf("coap new request: %v", err)
+				}
+				resp, err := conn.SendRequest(req)
+				if err != nil {
+					log.Fatalf("coap send request: %v", err)
+				}
+				//fmt.Fprintf(os.Stdout, "%s\n", resp.Payload)
+				fmt.Fprintf(ioutil.Discard, "%s\n", resp.Payload)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func BenchmarkMultiConnParallelSendRequest(b *testing.B) {
+	N := 1000
+	P := []byte("hello")
+
+	var wg sync.WaitGroup
+	for i := 0; i < N; i++ {
+		conn, err := coap.DefaultClient.Dial("coap://localhost:5683", nil, nil)
+		if err != nil {
+			b.Fatalf("coap dial: %v", err)
+		}
+		defer conn.Close()
+
+		go func() {
+			for i := 0; i < b.N; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					req, err := coap.NewRequest(true, coap.POST, "coap://localhost/ping", P)
+					if err != nil {
+						log.Fatalf("coap new request: %v", err)
+					}
+					resp, err := conn.SendRequest(req)
+					if err != nil {
+						log.Fatalf("coap send request: %v", err)
+					}
+					//fmt.Fprintf(os.Stdout, "%s\n", resp.Payload)
+					fmt.Fprintf(ioutil.Discard, "%s\n", resp.Payload)
+				}()
+			}
 		}()
 	}
 	wg.Wait()
