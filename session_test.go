@@ -2,9 +2,11 @@ package coap
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -96,14 +98,20 @@ func TestParseURLFromOptions(t *testing.T) {
 	}
 }
 
-type TestSessionHandler struct{}
+type TestEchoHandler struct{}
 
-func (h TestSessionHandler) ServeCOAP(w ResponseWriter, r *Request) {
+func (h TestEchoHandler) ServeCOAP(w ResponseWriter, r *Request) {
 	//log.Printf("%s", r.Payload)
 	w.Write(r.Payload)
 }
 
-func NewTestSession(w io.Writer) *session {
+type TestAckHandler struct{}
+
+func (h TestAckHandler) ServeCOAP(w ResponseWriter, r *Request) {
+	w.Ack(Changed)
+}
+
+func NewTestSession(w io.Writer, h Handler) *session {
 	la, err := net.ResolveUDPAddr("udp", "localhost:5683")
 	if err != nil {
 		panic(err)
@@ -112,7 +120,41 @@ func NewTestSession(w io.Writer) *session {
 	if err != nil {
 		panic(err)
 	}
-	return newSession(w, TestSessionHandler{}, nil, la, ra, "coap")
+	return newSession(w, h, nil, la, ra, "coap")
+}
+
+func SessionRecvData(t *testing.T, s *session, n int) {
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		m := base.Message{
+			Type:      base.CON,
+			Code:      base.PUT,
+			MessageID: uint16(i),
+			Token:     fmt.Sprint(i),
+			Payload:   []byte("hello"),
+		}
+		data, err := m.Marshal()
+		if err != nil {
+			t.Fatalf("message marshal: %v", err)
+		}
+
+		wg.Add(1)
+		go func(data []byte) {
+			defer wg.Done()
+			s.recvData(data)
+		}(data)
+	}
+	wg.Wait()
+}
+
+func TestSessionRecvData0(t *testing.T) {
+	s := NewTestSession(&bytes.Buffer{}, TestEchoHandler{})
+	SessionRecvData(t, s, 65535)
+}
+
+func TestSessionRecvData1(t *testing.T) {
+	s := NewTestSession(&bytes.Buffer{}, TestAckHandler{})
+	SessionRecvData(t, s, 65535)
 }
 
 func TestSessionRecvRequest(t *testing.T) {
@@ -156,7 +198,7 @@ func TestSessionRecvRequest(t *testing.T) {
 	for i, tt := range tests {
 		var b bytes.Buffer
 		var m base.Message
-		s := NewTestSession(&b)
+		s := NewTestSession(&b, TestEchoHandler{})
 		s.seq = 100
 		s.Recv(tt.in)
 		time.Sleep(1 * time.Millisecond)
@@ -190,7 +232,7 @@ func (w *TestSessionWriter) Write(p []byte) (n int, err error) {
 
 func TestSessionSendRequest(t *testing.T) {
 	var w TestSessionWriter
-	s := NewTestSession(&w)
+	s := NewTestSession(&w, TestEchoHandler{})
 	w.s = s
 
 	tests := []struct {

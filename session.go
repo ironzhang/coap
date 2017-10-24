@@ -436,11 +436,33 @@ func (s *session) Send(m base.Message) error {
 	return err
 }
 
+func randomInt64(min, max int64) int64 {
+	n := max - min
+	if n <= 0 {
+		return min
+	}
+	return min + mrand.Int63n(n)
+}
+
+func randomDuration() time.Duration {
+	const (
+		min = 50 * int64(time.Millisecond)
+		max = 500 * int64(time.Millisecond)
+	)
+	return time.Duration(randomInt64(min, max))
+}
+
 func (s *session) postMessage(m base.Message) {
-	s.runningc <- func() {
+	fn := func() {
 		if err := s.sendMessage(m); err != nil {
 			log.Printf("send message: %v", err)
 		}
+	}
+
+	select {
+	case s.runningc <- fn:
+	default:
+		time.AfterFunc(randomDuration(), func() { s.runningc <- fn })
 	}
 }
 
@@ -452,10 +474,16 @@ func (s *session) sendMessage(m base.Message) error {
 }
 
 func (s *session) postResponse(r *response) {
-	s.runningc <- func() {
+	fn := func() {
 		if err := s.sendResponse(r); err != nil {
 			log.Printf("send response: %v", err)
 		}
+	}
+
+	select {
+	case s.runningc <- fn:
+	default:
+		time.AfterFunc(randomDuration(), func() { s.runningc <- fn })
 	}
 }
 
