@@ -13,7 +13,7 @@ import (
 func init() {
 	coap.Verbose = 0
 	coap.EnableCache = false
-	//go ListenAndServeTestCOAP(":5683")
+	go ListenAndServeTestCOAP(":5683")
 }
 
 type TestCOAPHandler struct{}
@@ -149,7 +149,7 @@ func BenchmarkConnParallelSendRequest(b *testing.B) {
 }
 
 func BenchmarkMultiConnSerialSendRequest(b *testing.B) {
-	N := 1000
+	N := 500
 	P := []byte("hello")
 
 	var wg sync.WaitGroup
@@ -181,7 +181,7 @@ func BenchmarkMultiConnSerialSendRequest(b *testing.B) {
 }
 
 func BenchmarkMultiConnParallelSendRequest(b *testing.B) {
-	N := 1000
+	N := 500
 	P := []byte("hello")
 
 	var wg sync.WaitGroup
