@@ -10,6 +10,12 @@ import (
 	"github.com/ironzhang/coap"
 )
 
+func init() {
+	coap.Verbose = 0
+	coap.EnableCache = false
+	go ListenAndServeTestCOAP(":5683")
+}
+
 type TestCOAPHandler struct{}
 
 func (h TestCOAPHandler) ServeCOAP(w coap.ResponseWriter, r *coap.Request) {
@@ -20,12 +26,6 @@ func ListenAndServeTestCOAP(addr string) {
 	if err := coap.ListenAndServe(addr, TestCOAPHandler{}, nil); err != nil {
 		log.Fatalf("coap listen and serve: %v", err)
 	}
-}
-
-func init() {
-	coap.Verbose = 0
-	coap.EnableCache = false
-	go ListenAndServeTestCOAP(":5683")
 }
 
 func TestCOAP(t *testing.T) {

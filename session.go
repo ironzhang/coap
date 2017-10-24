@@ -585,15 +585,17 @@ func (s *session) postRequestWithCache(req *Request) (*Response, error) {
 	return resp, nil
 }
 
-func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) error {
-	done := func(err error) {
-		if aw != nil {
-			aw.Done(err)
+func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) (err error) {
+	defer func() {
+		if err != nil {
+			if aw != nil {
+				aw.Done(err)
+			}
+			if rw != nil {
+				rw.Done(base.Message{}, err)
+			}
 		}
-		if rw != nil {
-			rw.Done(base.Message{}, err)
-		}
-	}
+	}()
 
 	// 构造消息
 	m := base.Message{
@@ -621,8 +623,7 @@ func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) err
 	}
 
 	// 发送消息
-	if err := s.sendMessage(m); err != nil {
-		done(err)
+	if err = s.sendMessage(m); err != nil {
 		return err
 	}
 

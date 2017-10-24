@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"reflect"
 	"sync"
@@ -220,12 +221,17 @@ func (w *TestSessionWriter) Write(p []byte) (n int, err error) {
 	if err = m.Unmarshal(p); err != nil {
 		return 0, err
 	}
+
 	if m.Type == base.CON || m.Type == base.NON {
 		m.Code = base.Content
 		if m.Type == base.CON {
 			m.Type = base.ACK
 		}
-		go w.s.Recv(m)
+		data, err := m.Marshal()
+		if err != nil {
+			return 0, err
+		}
+		go w.s.recvData(data)
 	}
 	return len(p), nil
 }
@@ -279,4 +285,39 @@ func TestSessionSendRequest(t *testing.T) {
 			t.Fatalf("case%d: %v != %v", i, got, want)
 		}
 	}
+}
+
+func TestSessionPostRequestAndWaitAck(t *testing.T) {
+	s := NewTestSession(&bytes.Buffer{}, TestEchoHandler{})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.seq = 0
+			r := &Request{
+				Confirmable: true,
+				Method:      PUT,
+				Token:       "1",
+				Payload:     []byte("hello, world"),
+				useToken:    true,
+			}
+			if err := s.postRequestAndWaitAck(r); err != nil {
+				log.Printf("post request and wait ack: %v", err)
+			}
+		}()
+		time.Sleep(100 * time.Millisecond)
+	}
+	time.Sleep(100 * time.Millisecond)
+	m := base.Message{
+		Type:      base.ACK,
+		MessageID: s.seq,
+	}
+	data, err := m.Marshal()
+	if err != nil {
+		t.Fatalf("message marshal: %v", err)
+	}
+	s.recvData(data)
+	wg.Wait()
 }
