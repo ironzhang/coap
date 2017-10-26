@@ -28,7 +28,7 @@ func ListenAndServeTestCOAP(addr string) {
 	}
 }
 
-func TestCOAP(t *testing.T) {
+func TestCOAPClient(t *testing.T) {
 	tests := []struct {
 		confirmable bool
 		method      coap.Code
@@ -54,6 +54,56 @@ func TestCOAP(t *testing.T) {
 			t.Fatalf("case%d: coap new request: %v", i, err)
 		}
 		resp, err := coap.DefaultClient.SendRequest(req)
+		if err != nil {
+			t.Fatalf("case%d: coap send request: %v", i, err)
+		}
+		if got, want := resp.Status, coap.Content; got != want {
+			t.Errorf("case%d: response status: %v != %v", i, got, want)
+		}
+		if got, want := string(resp.Payload), string(tt.payload); got != want {
+			t.Errorf("case%d: response payload: %v != %v", i, got, want)
+		}
+	}
+}
+
+func TestCOAPConn(t *testing.T) {
+	conn, err := coap.DefaultClient.Dial("coap://localhost", nil, nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	tests := []struct {
+		confirmable bool
+		method      coap.Code
+		urlstr      string
+		payload     []byte
+	}{
+		{
+			confirmable: true,
+			method:      coap.PUT,
+			urlstr:      "coap://localhost",
+			payload:     []byte("hello"),
+		},
+		{
+			confirmable: false,
+			method:      coap.POST,
+			urlstr:      "coap://localhost:5683",
+			payload:     []byte("hello"),
+		},
+		{
+			confirmable: false,
+			method:      coap.POST,
+			urlstr:      "coaps://localhost:5683",
+			payload:     []byte("hello"),
+		},
+	}
+	for i, tt := range tests {
+		req, err := coap.NewRequest(tt.confirmable, tt.method, tt.urlstr, tt.payload)
+		if err != nil {
+			t.Fatalf("case%d: coap new request: %v", i, err)
+		}
+		resp, err := conn.SendRequest(req)
 		if err != nil {
 			t.Fatalf("case%d: coap send request: %v", i, err)
 		}

@@ -2,6 +2,7 @@ package coap
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"sync/atomic"
@@ -46,7 +47,7 @@ func (c *Conn) SendRequest(req *Request) (*Response, error) {
 		return nil, errors.New("conn closed")
 	}
 	if c.url.Host != req.URL.Host {
-		return nil, errors.New("unacceptable host")
+		return nil, fmt.Errorf("%q is unacceptable, correct url host is %q", req.URL.Host, c.url.Host)
 	}
 	return c.sess.postRequestWithCache(req)
 }
@@ -94,6 +95,17 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 }
 
 func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
+	_, port, err := splitHostPort(u.Host)
+	if err != nil {
+		return nil, err
+	}
+	if port == 0 {
+		if u.Scheme == "coaps" {
+			u.Host += ":5684"
+		} else {
+			u.Host += ":5683"
+		}
+	}
 	return net.Dial("udp", u.Host)
 }
 
