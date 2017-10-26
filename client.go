@@ -95,6 +95,14 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 }
 
 func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
+	return net.Dial("udp", u.Host)
+}
+
+func (c *Client) Dial(urlstr string, handler Handler, observer Observer) (*Conn, error) {
+	u, err := url.Parse(urlstr)
+	if err != nil {
+		return nil, err
+	}
 	_, port, err := splitHostPort(u.Host)
 	if err != nil {
 		return nil, err
@@ -105,14 +113,6 @@ func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
 		} else {
 			u.Host += ":5683"
 		}
-	}
-	return net.Dial("udp", u.Host)
-}
-
-func (c *Client) Dial(urlstr string, handler Handler, observer Observer) (*Conn, error) {
-	u, err := url.Parse(urlstr)
-	if err != nil {
-		return nil, err
 	}
 	nc, err := c.dialUDP(u)
 	if err != nil {
