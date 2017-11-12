@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 )
 
-// Conn CoAP链接
+// Conn COAP链接
 type Conn struct {
 	url    *url.URL
 	conn   net.Conn
@@ -35,7 +35,7 @@ func (c *Conn) reading() {
 	}
 }
 
-// Close 关闭CoAP链接
+// Close 关闭COAP链接
 func (c *Conn) Close() error {
 	if atomic.CompareAndSwapInt64(&c.closed, 0, 1) {
 		c.sess.Close()
@@ -44,7 +44,7 @@ func (c *Conn) Close() error {
 	return nil
 }
 
-// SendRequest 发送CoAP请求
+// SendRequest 发送COAP请求
 func (c *Conn) SendRequest(req *Request) (*Response, error) {
 	if atomic.LoadInt64(&c.closed) != 0 {
 		return nil, errors.New("conn closed")
@@ -55,13 +55,13 @@ func (c *Conn) SendRequest(req *Request) (*Response, error) {
 	return c.sess.postRequestWithCache(req)
 }
 
-// Client 定义了运行一个CoAP Client的参数
+// Client 定义了运行一个COAP Client的参数
 type Client struct {
 }
 
 var DefaultClient = &Client{}
 
-// SendRequest 发送CoAP请求
+// SendRequest 发送COAP请求
 func (c *Client) SendRequest(req *Request) (*Response, error) {
 	if req.URL == nil {
 		return nil, errors.New("coap: nil Request.URL")
@@ -103,7 +103,7 @@ func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
 	return net.Dial("udp", u.Host)
 }
 
-// Dial 建立CoAP链接
+// Dial 建立COAP链接
 func (c *Client) Dial(urlstr string, handler Handler, observer Observer) (*Conn, error) {
 	u, err := url.Parse(urlstr)
 	if err != nil {
