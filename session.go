@@ -351,11 +351,12 @@ func (s *session) handleObserveResponse(m base.Message) {
 	// 由serving协程调用上层观察者接口处理订阅响应
 	s.servingc <- func() {
 		resp := &Response{
-			Ack:     m.Type == base.ACK,
-			Status:  Code(m.Code),
-			Options: m.Options,
-			Token:   Token(m.Token),
-			Payload: m.Payload,
+			Ack:        m.Type == base.ACK,
+			Status:     Code(m.Code),
+			Options:    m.Options,
+			Token:      Token(m.Token),
+			Payload:    m.Payload,
+			RemoteAddr: s.remoteAddr,
 		}
 		s.observer.ServeObserve(resp)
 	}
@@ -401,11 +402,12 @@ func (s *session) handleObserveACK(m base.Message) {
 	// 由serving协程调用上层观察者接口处理订阅响应
 	s.servingc <- func() {
 		resp := &Response{
-			Ack:     m.Type == base.ACK,
-			Status:  Code(m.Code),
-			Options: m.Options,
-			Token:   Token(m.Token),
-			Payload: m.Payload,
+			Ack:        m.Type == base.ACK,
+			Status:     Code(m.Code),
+			Options:    m.Options,
+			Token:      Token(m.Token),
+			Payload:    m.Payload,
+			RemoteAddr: s.remoteAddr,
 		}
 		s.observer.ServeObserve(resp)
 	}
