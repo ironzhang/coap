@@ -538,38 +538,45 @@ func (s *session) sendResponse(r *response) error {
 	return nil
 }
 
-func (s *session) postRequest(r *Request) {
-	s.runningc <- func() {
-		if err := s.sendRequest(r, nil, nil); err != nil {
-			log.Printf("send request: %v", err)
-		}
-	}
-}
-
 func (s *session) postRequestAndWaitAck(r *Request) (*Response, error) {
 	w := newAckWaiter()
 	s.runningc <- func() {
-		if err := s.sendRequest(r, w, nil); err != nil {
-			log.Printf("send request: %v", err)
+		if err := s.sendRequestWithAckWaiter(r, w); err != nil {
+			log.Printf("send request with ack waiter: %v", err)
 		}
 	}
 	return w.Wait()
 }
 
-func (s *session) postRequestAndWaitResponse(r *Request) (*Response, error) {
-	w := newResponseWaiter()
-	if r.Timeout > 0 {
-		w.timeout = r.Timeout
-	}
-	if r.Confirmable && w.timeout < base.EXCHANGE_LIFETIME {
-		w.timeout = base.EXCHANGE_LIFETIME
-	}
-	s.runningc <- func() {
-		if err := s.sendRequest(r, nil, w); err != nil {
-			log.Printf("send request: %v", err)
+func (s *session) sendRequestWithAckWaiter(r *Request, w *ackWaiter) (err error) {
+	defer func() {
+		if err != nil {
+			w.Done(base.Message{}, err)
 		}
+	}()
+
+	// 非可靠请求没有ACK
+	if !r.Confirmable {
+		return fmt.Errorf("send non request with ack waiter")
 	}
-	return w.Wait()
+
+	// 构造消息
+	m := s.makeRequestMessage(r)
+
+	// 检查MessageID
+	if _, ok := s.ackWaiters[m.MessageID]; ok {
+		return fmt.Errorf("MessageID(%d) duplicate", m.MessageID)
+	}
+
+	// 发送消息
+	if err = s.sendMessage(m); err != nil {
+		return err
+	}
+
+	// 设置应答等待
+	s.ackWaiters[m.MessageID] = w
+
+	return nil
 }
 
 func (s *session) postRequestWithCache(req *Request) (*Response, error) {
@@ -587,19 +594,50 @@ func (s *session) postRequestWithCache(req *Request) (*Response, error) {
 	return resp, nil
 }
 
-func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) (err error) {
+func (s *session) postRequestAndWaitResponse(r *Request) (*Response, error) {
+	w := newResponseWaiter()
+	if r.Timeout > 0 {
+		w.timeout = r.Timeout
+	}
+	if r.Confirmable && w.timeout < base.EXCHANGE_LIFETIME {
+		w.timeout = base.EXCHANGE_LIFETIME
+	}
+	s.runningc <- func() {
+		if err := s.sendRequestWithResponseWaiter(r, w); err != nil {
+			log.Printf("send request with response waiter: %v", err)
+		}
+	}
+	return w.Wait()
+}
+
+func (s *session) sendRequestWithResponseWaiter(r *Request, w *responseWaiter) (err error) {
 	defer func() {
 		if err != nil {
-			if aw != nil {
-				aw.Done(base.Message{}, err)
-			}
-			if rw != nil {
-				rw.Done(base.Message{}, err)
-			}
+			w.Done(base.Message{}, err)
 		}
 	}()
 
 	// 构造消息
+	m := s.makeRequestMessage(r)
+
+	// 检查Token
+	if _, ok := s.respWaiters[m.Token]; ok {
+		return fmt.Errorf("Token(%s) duplicate", m.Token)
+	}
+
+	// 发送消息
+	if err = s.sendMessage(m); err != nil {
+		return err
+	}
+
+	// 设置响应等待
+	w.messageID = m.MessageID
+	s.respWaiters[m.Token] = w
+
+	return nil
+}
+
+func (s *session) makeRequestMessage(r *Request) base.Message {
 	m := base.Message{
 		Type:      base.NON,
 		Code:      uint8(r.Method),
@@ -615,36 +653,7 @@ func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) (er
 	} else {
 		m.Token = s.genToken()
 	}
-
-	// 检查MessageID和Token
-	if _, ok := s.ackWaiters[m.MessageID]; ok {
-		return fmt.Errorf("MessageID(%d) duplicate", m.MessageID)
-	}
-	if _, ok := s.respWaiters[m.Token]; ok {
-		return fmt.Errorf("Token(%s) duplicate", m.Token)
-	}
-
-	// 发送消息
-	if err = s.sendMessage(m); err != nil {
-		return err
-	}
-
-	// 设置应答等待
-	if aw != nil {
-		if r.Confirmable {
-			s.ackWaiters[m.MessageID] = aw
-		} else {
-			aw.Done(base.Message{}, nil)
-		}
-	}
-
-	// 设置响应等待
-	if rw != nil {
-		rw.messageID = m.MessageID
-		s.respWaiters[m.Token] = rw
-	}
-
-	return nil
+	return m
 }
 
 func (s *session) sendACK(messageID uint16) error {
