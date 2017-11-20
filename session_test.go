@@ -303,7 +303,7 @@ func TestSessionPostRequestAndWaitAck(t *testing.T) {
 				Payload:     []byte("hello, world"),
 				useToken:    true,
 			}
-			if err := s.postRequestAndWaitAck(r); err != nil {
+			if _, err := s.postRequestAndWaitAck(r); err != nil {
 				log.Printf("post request and wait ack: %v", err)
 			}
 		}()

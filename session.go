@@ -546,7 +546,7 @@ func (s *session) postRequest(r *Request) {
 	}
 }
 
-func (s *session) postRequestAndWaitAck(r *Request) error {
+func (s *session) postRequestAndWaitAck(r *Request) (*Response, error) {
 	w := newAckWaiter()
 	s.runningc <- func() {
 		if err := s.sendRequest(r, w, nil); err != nil {
@@ -591,7 +591,7 @@ func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) (er
 	defer func() {
 		if err != nil {
 			if aw != nil {
-				aw.Done(err)
+				aw.Done(base.Message{}, err)
 			}
 			if rw != nil {
 				rw.Done(base.Message{}, err)
@@ -634,7 +634,7 @@ func (s *session) sendRequest(r *Request, aw *ackWaiter, rw *responseWaiter) (er
 		if r.Confirmable {
 			s.ackWaiters[m.MessageID] = aw
 		} else {
-			aw.Done(nil)
+			aw.Done(base.Message{}, nil)
 		}
 	}
 
@@ -686,7 +686,7 @@ func (s *session) directSendBadOptionACK(messageID uint16, token string) error {
 func (s *session) finishAckWait(m base.Message, err error) {
 	if w, ok := s.ackWaiters[m.MessageID]; ok {
 		delete(s.ackWaiters, m.MessageID)
-		w.Done(err)
+		w.Done(m, err)
 	}
 }
 

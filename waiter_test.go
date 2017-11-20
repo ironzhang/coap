@@ -10,14 +10,16 @@ import (
 
 func TestAckWaiter(t *testing.T) {
 	w0 := newAckWaiter()
-	w0.Done(nil)
-	if got, want := w0.Wait(), error(nil); got != want {
+	w0.Done(base.Message{}, nil)
+	_, got := w0.Wait()
+	if want := error(nil); got != want {
 		t.Errorf("case0: %v != %v", got, want)
 	}
 
 	w1 := newAckWaiter()
-	time.AfterFunc(10*time.Millisecond, func() { w1.Done(io.EOF) })
-	if got, want := w1.Wait(), io.EOF; got != want {
+	time.AfterFunc(10*time.Millisecond, func() { w1.Done(base.Message{}, io.EOF) })
+	_, got = w1.Wait()
+	if want := io.EOF; got != want {
 		t.Errorf("case1: %v != %v", got, want)
 	}
 }

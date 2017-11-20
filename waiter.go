@@ -11,6 +11,7 @@ const defaultResponseTimeout = 20 * time.Second
 type ackWaiter struct {
 	done chan struct{}
 	err  error
+	msg  base.Message
 }
 
 func newAckWaiter() *ackWaiter {
@@ -19,14 +20,24 @@ func newAckWaiter() *ackWaiter {
 	}
 }
 
-func (w *ackWaiter) Done(err error) {
+func (w *ackWaiter) Done(msg base.Message, err error) {
+	w.msg = msg
 	w.err = err
 	close(w.done)
 }
 
-func (w *ackWaiter) Wait() error {
+func (w *ackWaiter) Wait() (*Response, error) {
 	<-w.done
-	return w.err
+	if w.err != nil {
+		return nil, w.err
+	}
+	return &Response{
+		Ack:     w.msg.Type == base.ACK,
+		Status:  Code(w.msg.Code),
+		Options: w.msg.Options,
+		Token:   Token(w.msg.Token),
+		Payload: w.msg.Payload,
+	}, nil
 }
 
 type responseWaiter struct {

@@ -87,13 +87,13 @@ func (s *Server) SendRequest(req *Request) (*Response, error) {
 // Observe 订阅.
 //
 // token长度不能大于8个字节.
-func (s *Server) Observe(token Token, urlstr string, accept uint32) error {
+func (s *Server) Observe(token Token, urlstr string, accept uint32) (*Response, error) {
 	if len(token) > 8 {
-		return errors.New("invalid token")
+		return nil, errors.New("invalid token")
 	}
 	req, err := NewRequest(true, GET, urlstr, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.useToken = true
 	req.Token = token
@@ -103,23 +103,23 @@ func (s *Server) Observe(token Token, urlstr string, accept uint32) error {
 }
 
 // CancelObserve 取消订阅.
-func (s *Server) CancelObserve(urlstr string) error {
+func (s *Server) CancelObserve(urlstr string) (*Response, error) {
 	req, err := NewRequest(true, GET, urlstr, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Options.Set(Observe, 1)
 	return s.postRequestAndWaitAck(req)
 }
 
-func (s *Server) postRequestAndWaitAck(req *Request) error {
+func (s *Server) postRequestAndWaitAck(req *Request) (*Response, error) {
 	addr, err := net.ResolveUDPAddr("udp", req.URL.Host)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sess, ok := s.getSession(addr)
 	if !ok {
-		return ErrSessionNotFound
+		return nil, ErrSessionNotFound
 	}
 	return sess.postRequestAndWaitAck(req)
 }
