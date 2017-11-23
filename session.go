@@ -159,16 +159,8 @@ func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr, sche
 }
 
 func (s *session) serving() {
-	for {
-		select {
-		case <-s.donec:
-			close(s.runningc)
-			return
-		case f, ok := <-s.servingc:
-			if ok {
-				f()
-			}
-		}
+	for f := range s.servingc {
+		f()
 	}
 }
 
@@ -180,10 +172,8 @@ func (s *session) running() {
 		case <-s.donec:
 			close(s.servingc)
 			return
-		case f, ok := <-s.runningc:
-			if ok {
-				f()
-			}
+		case f := <-s.runningc:
+			f()
 		case <-t.C:
 			s.update()
 		}
