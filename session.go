@@ -25,9 +25,9 @@ var (
 )
 
 var (
-	ErrReset      = errors.New("wait response reset by peer")
-	ErrTimeout    = errors.New("wait response timeout")
-	ErrAckTimeout = errors.New("wait ack timeout")
+	ErrReset   = errors.New("wait response reset by peer")
+	ErrTimeout = errors.New("wait response timeout")
+	//ErrAckTimeout = errors.New("wait ack timeout")
 )
 
 // Handler 响应COAP请求的接口
@@ -120,7 +120,6 @@ type session struct {
 	// 以下字段只能在running协程中访问
 	seq         uint16
 	stack       stack.Stack
-	ackWaiters  map[uint16]*ackWaiter
 	respWaiters map[string]*responseWaiter
 }
 
@@ -149,7 +148,6 @@ func (s *session) init(w io.Writer, h Handler, o Observer, la, ra net.Addr, sche
 
 	s.seq = uint16(mrand.Uint32() % math.MaxUint16)
 	s.stack.Init(s, s, s.genMessageID)
-	s.ackWaiters = make(map[uint16]*ackWaiter)
 	s.respWaiters = make(map[string]*responseWaiter)
 
 	go s.serving() // 调用上层回调接口协程
@@ -208,7 +206,6 @@ func (s *session) Close() error {
 }
 
 func (s *session) OnAckTimeout(m base.Message) {
-	s.finishAckWait(m, ErrAckTimeout)
 	if len(m.Token) > 0 {
 		s.finishResponseWait(m, ErrTimeout)
 	}
@@ -372,14 +369,11 @@ func (s *session) handleNormalResponse(m base.Message) {
 }
 
 func (s *session) handleACK(m base.Message) {
-	s.finishAckWait(m, nil)
-	if len(m.Token) > 0 {
-		s.finishResponseWait(m, nil)
-	}
-
 	options := Options(m.Options)
 	if options.Contain(Observe) {
 		s.handleObserveACK(m)
+	} else {
+		s.handleNormalACK(m)
 	}
 }
 
@@ -403,8 +397,13 @@ func (s *session) handleObserveACK(m base.Message) {
 	}
 }
 
+func (s *session) handleNormalACK(m base.Message) {
+	if len(m.Token) > 0 {
+		s.finishResponseWait(m, nil)
+	}
+}
+
 func (s *session) handleRST(m base.Message) {
-	s.finishAckWait(m, ErrReset)
 	for k, w := range s.respWaiters {
 		if w.messageID == m.MessageID {
 			delete(s.respWaiters, k)
@@ -528,47 +527,6 @@ func (s *session) sendResponse(r *response) error {
 	return nil
 }
 
-func (s *session) postRequestAndWaitAck(r *Request) (*Response, error) {
-	w := newAckWaiter()
-	s.runningc <- func() {
-		if err := s.sendRequestWithAckWaiter(r, w); err != nil {
-			log.Printf("send request with ack waiter: %v", err)
-		}
-	}
-	return w.Wait()
-}
-
-func (s *session) sendRequestWithAckWaiter(r *Request, w *ackWaiter) (err error) {
-	defer func() {
-		if err != nil {
-			w.Done(base.Message{}, err)
-		}
-	}()
-
-	// 非可靠请求没有ACK
-	if !r.Confirmable {
-		return fmt.Errorf("send non request with ack waiter")
-	}
-
-	// 构造消息
-	m := s.makeRequestMessage(r)
-
-	// 检查MessageID
-	if _, ok := s.ackWaiters[m.MessageID]; ok {
-		return fmt.Errorf("MessageID(%d) duplicate", m.MessageID)
-	}
-
-	// 发送消息
-	if err = s.sendMessage(m); err != nil {
-		return err
-	}
-
-	// 设置应答等待
-	s.ackWaiters[m.MessageID] = w
-
-	return nil
-}
-
 func (s *session) postRequestWithCache(req *Request) (*Response, error) {
 	if !EnableCache {
 		return s.postRequestAndWaitResponse(req)
@@ -680,13 +638,6 @@ func (s *session) directSendBadOptionACK(messageID uint16, token string) error {
 		Payload:   []byte(payload),
 	}
 	return s.Send(m)
-}
-
-func (s *session) finishAckWait(m base.Message, err error) {
-	if w, ok := s.ackWaiters[m.MessageID]; ok {
-		delete(s.ackWaiters, m.MessageID)
-		w.Done(m, err)
-	}
 }
 
 func (s *session) finishResponseWait(m base.Message, err error) {

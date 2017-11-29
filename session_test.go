@@ -303,8 +303,8 @@ func TestSessionPostRequestAndWaitAck(t *testing.T) {
 				Payload:     []byte("hello, world"),
 				useToken:    true,
 			}
-			if _, err := s.postRequestAndWaitAck(r); err != nil {
-				log.Printf("post request and wait ack: %v", err)
+			if _, err := s.postRequestAndWaitResponse(r); err != nil {
+				log.Printf("post request and wait response: %v", err)
 			}
 		}()
 		time.Sleep(100 * time.Millisecond)
@@ -312,6 +312,7 @@ func TestSessionPostRequestAndWaitAck(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	m := base.Message{
 		Type:      base.ACK,
+		Token:     "1",
 		MessageID: s.seq,
 	}
 	data, err := m.Marshal()

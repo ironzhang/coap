@@ -99,7 +99,7 @@ func (s *Server) Observe(token Token, urlstr string, accept uint32) (*Response, 
 	req.Token = token
 	req.Options.Set(Observe, 0)
 	req.Options.Set(Accept, accept)
-	return s.postRequestAndWaitAck(req)
+	return s.postRequestAndWaitResponse(req)
 }
 
 // CancelObserve 取消订阅.
@@ -109,10 +109,10 @@ func (s *Server) CancelObserve(urlstr string) (*Response, error) {
 		return nil, err
 	}
 	req.Options.Set(Observe, 1)
-	return s.postRequestAndWaitAck(req)
+	return s.postRequestAndWaitResponse(req)
 }
 
-func (s *Server) postRequestAndWaitAck(req *Request) (*Response, error) {
+func (s *Server) postRequestAndWaitResponse(req *Request) (*Response, error) {
 	addr, err := net.ResolveUDPAddr("udp", req.URL.Host)
 	if err != nil {
 		return nil, err
@@ -121,7 +121,7 @@ func (s *Server) postRequestAndWaitAck(req *Request) (*Response, error) {
 	if !ok {
 		return nil, ErrSessionNotFound
 	}
-	return sess.postRequestAndWaitAck(req)
+	return sess.postRequestAndWaitResponse(req)
 }
 
 func (s *Server) addSession(scheme string, conn net.PacketConn, addr net.Addr) *session {
