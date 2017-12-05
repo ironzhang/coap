@@ -318,47 +318,33 @@ func (s *session) handleRequest(m base.Message) {
 }
 
 func (s *session) handleResponse(m base.Message) {
-	options := Options(m.Options)
-	if options.Contain(Observe) {
-		s.handleObserveResponse(m)
-	} else {
-		s.handleNormalResponse(m)
-	}
-}
-
-func (s *session) handleObserveResponse(m base.Message) {
-	if s.observer == nil {
-		log.Printf("observer is nil")
-		if err := s.sendRST(m.MessageID); err != nil {
-			log.Printf("send rst: %v", err)
-		}
-		return
-	}
-
-	// 由serving协程调用上层观察者接口处理订阅响应
-	s.servingc <- func() {
-		resp := &Response{
-			Ack:        m.Type == base.ACK,
-			Status:     Code(m.Code),
-			Options:    m.Options,
-			Token:      Token(m.Token),
-			Payload:    m.Payload,
-			RemoteAddr: s.remoteAddr,
-		}
-		s.observer.ServeObserve(resp)
-	}
-
-	// 回复ACK
-	if m.Type == base.CON {
-		if err := s.sendACK(m.MessageID); err != nil {
-			log.Printf("send ack: %v", err)
-		}
-	}
-}
-
-func (s *session) handleNormalResponse(m base.Message) {
 	// 结束响应等待
 	s.finishResponseWait(m, nil)
+
+	// 处理observe的响应
+	options := Options(m.Options)
+	if options.Contain(Observe) {
+		if s.observer == nil {
+			log.Printf("observer is nil")
+			if err := s.sendRST(m.MessageID); err != nil {
+				log.Printf("send rst: %v", err)
+			}
+			return
+		}
+
+		// 由serving协程调用上层观察者接口处理订阅响应
+		s.servingc <- func() {
+			resp := &Response{
+				Ack:        m.Type == base.ACK,
+				Status:     Code(m.Code),
+				Options:    m.Options,
+				Token:      Token(m.Token),
+				Payload:    m.Payload,
+				RemoteAddr: s.remoteAddr,
+			}
+			s.observer.ServeObserve(resp)
+		}
+	}
 
 	// 回复ACK
 	if m.Type == base.CON {
@@ -369,37 +355,32 @@ func (s *session) handleNormalResponse(m base.Message) {
 }
 
 func (s *session) handleACK(m base.Message) {
-	options := Options(m.Options)
-	if options.Contain(Observe) {
-		s.handleObserveACK(m)
-	} else {
-		s.handleNormalACK(m)
-	}
-}
-
-func (s *session) handleObserveACK(m base.Message) {
-	if s.observer == nil {
-		log.Printf("observer is nil")
-		return
-	}
-
-	// 由serving协程调用上层观察者接口处理订阅响应
-	s.servingc <- func() {
-		resp := &Response{
-			Ack:        m.Type == base.ACK,
-			Status:     Code(m.Code),
-			Options:    m.Options,
-			Token:      Token(m.Token),
-			Payload:    m.Payload,
-			RemoteAddr: s.remoteAddr,
-		}
-		s.observer.ServeObserve(resp)
-	}
-}
-
-func (s *session) handleNormalACK(m base.Message) {
+	// ACK消息中包含Token表示这是一个附带响应
 	if len(m.Token) > 0 {
+		// 结束响应等待
 		s.finishResponseWait(m, nil)
+
+		// 处理observe响应
+		options := Options(m.Options)
+		if options.Contain(Observe) {
+			if s.observer == nil {
+				log.Printf("observer is nil")
+				return
+			}
+
+			// 由serving协程调用上层观察者接口处理订阅响应
+			s.servingc <- func() {
+				resp := &Response{
+					Ack:        m.Type == base.ACK,
+					Status:     Code(m.Code),
+					Options:    m.Options,
+					Token:      Token(m.Token),
+					Payload:    m.Payload,
+					RemoteAddr: s.remoteAddr,
+				}
+				s.observer.ServeObserve(resp)
+			}
+		}
 	}
 }
 
