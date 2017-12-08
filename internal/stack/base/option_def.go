@@ -78,16 +78,16 @@ const (
 	OpaqueValue
 )
 
-type optionDef struct {
-	id     uint16
-	name   string
-	format int
-	repeat int
-	minlen int
-	maxlen int
+type OptionDef struct {
+	ID     uint16
+	Name   string
+	Format int
+	Repeat int
+	MinLen int
+	MaxLen int
 }
 
-var optionDefs = make(map[uint16]optionDef)
+var optionDefs = make(map[uint16]OptionDef)
 
 // RegisterOptionDef 注册选项定义.
 //
@@ -98,20 +98,36 @@ func RegisterOptionDef(id uint16, repeat int, name string, format, minlen, maxle
 	if _, ok := optionDefs[id]; ok {
 		panic("option registered")
 	}
-	optionDefs[id] = optionDef{
-		id:     id,
-		name:   name,
-		format: format,
-		repeat: repeat,
-		minlen: minlen,
-		maxlen: maxlen,
+	optionDefs[id] = OptionDef{
+		ID:     id,
+		Name:   name,
+		Format: format,
+		Repeat: repeat,
+		MinLen: minlen,
+		MaxLen: maxlen,
 	}
+}
+
+// LookupOptionDef 根据OptionID查找选项定义
+func LookupOptionDef(id uint16) (OptionDef, bool) {
+	def, ok := optionDefs[id]
+	return def, ok
+}
+
+// LookupOptionDefByName 根据OptionName查找选项定义
+func LookupOptionDefByName(name string) (OptionDef, bool) {
+	for _, def := range optionDefs {
+		if def.Name == name {
+			return def, true
+		}
+	}
+	return OptionDef{}, false
 }
 
 // OptionName 返回选项名称.
 func OptionName(id uint16) string {
-	if def, ok := optionDefs[id]; ok && def.name != "" {
-		return def.name
+	if def, ok := optionDefs[id]; ok && def.Name != "" {
+		return def.Name
 	}
 	return fmt.Sprint(id)
 }
@@ -133,10 +149,10 @@ func recognize(id uint16, buf []byte, repeat int) bool {
 	if !ok {
 		return false
 	}
-	if n := len(buf); n < def.minlen || n > def.maxlen {
+	if n := len(buf); n < def.MinLen || n > def.MaxLen {
 		return false
 	}
-	if def.repeat > 0 && repeat > def.repeat {
+	if def.Repeat > 0 && repeat > def.Repeat {
 		return false
 	}
 	return true

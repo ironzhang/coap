@@ -467,7 +467,7 @@ func optionValueToBytes(v interface{}) ([]byte, error) {
 func bytesToOptionValue(id uint16, buf []byte) interface{} {
 	format := OpaqueValue
 	if def, ok := optionDefs[id]; ok {
-		format = def.format
+		format = def.Format
 	}
 	switch format {
 	case EmptyValue:

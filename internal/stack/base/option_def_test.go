@@ -31,19 +31,19 @@ func TestOptionDefs(t *testing.T) {
 			t.Errorf("can not recognize %s option", OptionName(tt.id))
 			continue
 		}
-		if got, want := def.id, tt.id; got != want {
+		if got, want := def.ID, tt.id; got != want {
 			t.Errorf("%q option's id: %v != %v", OptionName(tt.id), got, want)
 		}
-		if got, want := (def.repeat != 1), tt.repeat; got != want {
+		if got, want := (def.Repeat != 1), tt.repeat; got != want {
 			t.Errorf("%q option's repeatable: %v != %v", OptionName(tt.id), got, want)
 		}
-		if got, want := def.format, tt.format; got != want {
+		if got, want := def.Format, tt.format; got != want {
 			t.Errorf("%q option's format: %v != %v", OptionName(tt.id), got, want)
 		}
-		if got, want := def.minlen, tt.minlen; got != want {
+		if got, want := def.MinLen, tt.minlen; got != want {
 			t.Errorf("%q option's minlen: %v != %v", OptionName(tt.id), got, want)
 		}
-		if got, want := def.maxlen, tt.maxlen; got != want {
+		if got, want := def.MaxLen, tt.maxlen; got != want {
 			t.Errorf("%q option's maxlen: %v != %v", OptionName(tt.id), got, want)
 		}
 	}
