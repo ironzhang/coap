@@ -2,4 +2,4 @@
 
 CURL=../coap-curl/coap-curl
 
-$CURL -X POST --data 'ConRequest' coap://localhost/TestConRequest
+$CURL -X POST --con --data 'ConRequest' coap://localhost/TestConRequest

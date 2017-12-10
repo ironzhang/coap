@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 
@@ -57,7 +58,7 @@ func (a *Args) Parse() error {
 	var err error
 	var method string
 
-	flag.BoolVar(&a.Confirmable, "con", true, "confirmable")
+	flag.BoolVar(&a.Confirmable, "con", false, "confirmable")
 	flag.Var(&a.Options, "option", "option")
 	flag.Var(&a.EmptyOptions, "empty-option", "empty option")
 	flag.Var(&a.UintOptions, "uint-option", "uint option")
@@ -132,6 +133,8 @@ func MakeRequest(a *Args) (*coap.Request, error) {
 }
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
 	var args Args
 	err := args.Parse()
 	if err != nil {
