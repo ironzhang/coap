@@ -97,7 +97,7 @@ func ParseCode(s string) (uint8, error) {
 		if err != nil {
 			return 0, err
 		}
-		c |= (u & 0x07)
+		c |= (u & 0x1f)
 	}
 	return uint8(c), nil
 }
