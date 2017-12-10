@@ -150,7 +150,7 @@ func main() {
 	var args Args
 	err := args.Parse()
 	if err != nil {
-		fmt.Printf("parse options: %v\n", err)
+		fmt.Printf("parse args: %v\n", err)
 		flag.Usage()
 		return
 	}
