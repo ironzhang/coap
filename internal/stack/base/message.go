@@ -437,6 +437,10 @@ func decodeUintVariant(b []byte) uint32 {
 }
 
 func optionValueToBytes(v interface{}) ([]byte, error) {
+	if v == nil {
+		return nil, nil
+	}
+
 	switch tv := v.(type) {
 	case string:
 		return []byte(tv), nil
