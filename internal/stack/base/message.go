@@ -151,7 +151,8 @@ var codeNames = [256]string{
 func init() {
 	for i := range codeNames {
 		if codeNames[i] == "" {
-			codeNames[i] = fmt.Sprintf("Unknown (0x%x)", i)
+			c1, c2 := i>>5, i&0x1f
+			codeNames[i] = fmt.Sprintf("Unknown (%d.%02d)", c1, c2)
 		}
 	}
 }
