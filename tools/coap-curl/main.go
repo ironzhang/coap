@@ -50,7 +50,7 @@ type Args struct {
 }
 
 // usage
-// coap-curl --empty-option "" --uint-option "" --string-option "" --opaque-option"" --data '{"Name": "xx"}' --data-file xxx.coap url
+// coap-curl --empty-option "" --uint-option "" --string-option "" --opaque-option"" --data '{"Name": "xx"}' url
 func (a *Args) Parse() error {
 	var err error
 	var method string
