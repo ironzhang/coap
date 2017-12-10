@@ -10,17 +10,21 @@ import (
 
 	"github.com/ironzhang/coap"
 	"github.com/ironzhang/coap/internal/stack/base"
+	"github.com/ironzhang/coap/tools/coaputil"
 )
 
-type StringsValue []string
-
-func (p *StringsValue) Set(s string) error {
-	*p = append(*p, s)
-	return nil
-}
-
-func (p *StringsValue) String() string {
-	return strings.Join(*p, ",")
+type Args struct {
+	Confirmable   bool
+	Options       coaputil.StringsValue
+	EmptyOptions  coaputil.StringsValue
+	UintOptions   coaputil.StringsValue
+	StringOptions coaputil.StringsValue
+	OpaqueOptions coaputil.StringsValue
+	Data          string
+	InFile        string
+	OutFile       string
+	Method        coap.Code
+	URL           string
 }
 
 func ParseMethod(s string) (coap.Code, error) {
@@ -36,20 +40,6 @@ func ParseMethod(s string) (coap.Code, error) {
 	default:
 		return 0, fmt.Errorf("unknown coap method: %v", s)
 	}
-}
-
-type Args struct {
-	Confirmable   bool
-	Options       StringsValue
-	EmptyOptions  StringsValue
-	UintOptions   StringsValue
-	StringOptions StringsValue
-	OpaqueOptions StringsValue
-	Data          string
-	InFile        string
-	OutFile       string
-	Method        coap.Code
-	URL           string
 }
 
 // usage
@@ -85,25 +75,6 @@ func (a *Args) Parse() error {
 	return nil
 }
 
-func AddOptions(r *coap.Request, a *Args) (err error) {
-	if err = addNameOptions(&r.Options, a.Options); err != nil {
-		return err
-	}
-	if err = addIDOptions(&r.Options, base.EmptyValue, a.EmptyOptions); err != nil {
-		return err
-	}
-	if err = addIDOptions(&r.Options, base.UintValue, a.UintOptions); err != nil {
-		return err
-	}
-	if err = addIDOptions(&r.Options, base.StringValue, a.StringOptions); err != nil {
-		return err
-	}
-	if err = addIDOptions(&r.Options, base.OpaqueValue, a.OpaqueOptions); err != nil {
-		return err
-	}
-	return nil
-}
-
 func MakePayload(data string, infile string) (payload []byte, err error) {
 	if data != "" {
 		return []byte(data), nil
@@ -115,6 +86,47 @@ func MakePayload(data string, infile string) (payload []byte, err error) {
 		return payload, nil
 	}
 	return nil, nil
+}
+
+func AddOptionsByName(opts *coap.Options, ss []string) error {
+	for _, s := range ss {
+		opt, err := coaputil.ParseOptionByName(s)
+		if err != nil {
+			return err
+		}
+		opts.Add(opt.ID, opt.Value)
+	}
+	return nil
+}
+
+func AddOptionsByID(opts *coap.Options, format int, ss []string) error {
+	for _, s := range ss {
+		opt, err := coaputil.ParseOptionByID(format, s)
+		if err != nil {
+			return err
+		}
+		opts.Add(opt.ID, opt.Value)
+	}
+	return nil
+}
+
+func AddOptions(r *coap.Request, a *Args) (err error) {
+	if err = AddOptionsByName(&r.Options, a.Options); err != nil {
+		return err
+	}
+	if err = AddOptionsByID(&r.Options, base.EmptyValue, a.EmptyOptions); err != nil {
+		return err
+	}
+	if err = AddOptionsByID(&r.Options, base.UintValue, a.UintOptions); err != nil {
+		return err
+	}
+	if err = AddOptionsByID(&r.Options, base.StringValue, a.StringOptions); err != nil {
+		return err
+	}
+	if err = AddOptionsByID(&r.Options, base.OpaqueValue, a.OpaqueOptions); err != nil {
+		return err
+	}
+	return nil
 }
 
 func MakeRequest(a *Args) (*coap.Request, error) {
