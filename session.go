@@ -270,7 +270,7 @@ func (s *session) handleMSG(m base.Message) {
 		s.handleResponse(m)
 	default:
 		// 保留
-		log.Printf("reserved code: %d.%d", c, m.Code&0x1f)
+		s.handleReservedCode(m)
 	}
 }
 
@@ -350,6 +350,17 @@ func (s *session) handleResponse(m base.Message) {
 	if m.Type == base.CON {
 		if err := s.sendACK(m.MessageID); err != nil {
 			log.Printf("send ack: %v", err)
+		}
+	}
+}
+
+func (s *session) handleReservedCode(m base.Message) {
+	log.Printf("reserved code: %s", base.CodeName(m.Code))
+
+	// 回复RST
+	if m.Type == base.CON {
+		if err := s.sendRST(m.MessageID); err != nil {
+			log.Printf("send rst: %v", err)
 		}
 	}
 }
