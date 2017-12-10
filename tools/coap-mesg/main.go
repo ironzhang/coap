@@ -6,6 +6,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/ironzhang/coap/internal/stack/base"
 	"github.com/ironzhang/coap/tools/coaputil"
@@ -14,7 +16,7 @@ import (
 type Args struct {
 	Addr          string
 	Type          int
-	Code          int
+	Code          string
 	MessageID     int
 	Token         string
 	Options       coaputil.StringsValue
@@ -29,7 +31,7 @@ type Args struct {
 func (p *Args) Parse() {
 	flag.StringVar(&p.Addr, "addr", "localhost:5683", "address")
 	flag.IntVar(&p.Type, "type", 0, "message type")
-	flag.IntVar(&p.Code, "code", 0, "message code")
+	flag.StringVar(&p.Code, "code", "0.00", "message code")
 	flag.IntVar(&p.MessageID, "id", 0, "message id")
 	flag.StringVar(&p.Token, "token", "", "")
 	flag.Var(&p.Options, "option", "option")
@@ -83,10 +85,31 @@ func AddOptions(m *base.Message, a *Args) (err error) {
 	return nil
 }
 
+func ParseCode(s string) (uint8, error) {
+	ss := strings.Split(s, ".")
+	c, err := strconv.ParseUint(ss[0], 10, 8)
+	if err != nil {
+		return 0, err
+	}
+	c = (c & 0xff) << 5
+	if len(ss) > 1 {
+		u, err := strconv.ParseUint(ss[1], 10, 8)
+		if err != nil {
+			return 0, err
+		}
+		c |= (u & 0x07)
+	}
+	return uint8(c), nil
+}
+
 func MakeMessage(a *Args) (base.Message, error) {
+	c, err := ParseCode(a.Code)
+	if err != nil {
+		return base.Message{}, err
+	}
 	m := base.Message{
 		Type:      uint8(a.Type),
-		Code:      uint8(a.Code),
+		Code:      c,
 		MessageID: uint16(a.MessageID),
 		Token:     a.Token,
 		Payload:   []byte(a.Payload),
