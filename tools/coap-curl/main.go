@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -44,7 +45,8 @@ type Args struct {
 	StringOptions StringsValue
 	OpaqueOptions StringsValue
 	Data          string
-	DataFile      string
+	InFile        string
+	OutFile       string
 	Method        coap.Code
 	URL           string
 }
@@ -62,7 +64,8 @@ func (a *Args) Parse() error {
 	flag.Var(&a.StringOptions, "string-option", "string option")
 	flag.Var(&a.OpaqueOptions, "opaque-option", "opaque option")
 	flag.StringVar(&a.Data, "data", "", "data")
-	flag.StringVar(&a.DataFile, "data-file", "", "data file")
+	flag.StringVar(&a.InFile, "in-file", "", "in file")
+	flag.StringVar(&a.OutFile, "out-file", "", "out file")
 	flag.StringVar(&method, "X", "GET", "method")
 	flag.IntVar(&coap.Verbose, "verbose", 0, "verbose")
 	flag.Parse()
@@ -100,8 +103,25 @@ func AddOptions(r *coap.Request, a *Args) (err error) {
 	return nil
 }
 
+func MakePayload(data string, infile string) (payload []byte, err error) {
+	if data != "" {
+		return []byte(data), nil
+	} else if infile != "" {
+		payload, err = ioutil.ReadFile(infile)
+		if err != nil {
+			return nil, err
+		}
+		return payload, nil
+	}
+	return nil, nil
+}
+
 func MakeRequest(a *Args) (*coap.Request, error) {
-	req, err := coap.NewRequest(a.Confirmable, a.Method, a.URL, []byte(a.Data))
+	payload, err := MakePayload(a.Data, a.InFile)
+	if err != nil {
+		return nil, err
+	}
+	req, err := coap.NewRequest(a.Confirmable, a.Method, a.URL, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -109,18 +129,6 @@ func MakeRequest(a *Args) (*coap.Request, error) {
 		return nil, err
 	}
 	return req, nil
-}
-
-func PrintRequest(r *coap.Request) {
-	fmt.Printf("CON[%t] %s %s\n", r.Confirmable, r.Method, r.URL.String())
-	r.Options.Write(os.Stdout)
-	fmt.Printf("\n%s\n\n", r.Payload)
-}
-
-func PrintResponse(r *coap.Response) {
-	fmt.Printf("ACK[%t] %s", r.Ack, r.Status)
-	r.Options.Write(os.Stdout)
-	fmt.Printf("\n%s\n\n", r.Payload)
 }
 
 func main() {
@@ -137,12 +145,18 @@ func main() {
 		fmt.Printf("make request: %v\n", err)
 		return
 	}
-	PrintRequest(req)
+	coap.PrintRequest(os.Stdout, req, true)
 
 	resp, err := coap.DefaultClient.SendRequest(req)
 	if err != nil {
 		fmt.Printf("send request: %v\n", err)
 		return
 	}
-	PrintResponse(resp)
+	coap.PrintResponse(os.Stdout, resp, true)
+
+	if args.OutFile != "" {
+		if err = ioutil.WriteFile(args.OutFile, resp.Payload, 0664); err != nil {
+			fmt.Printf("write file: %v\n", err)
+		}
+	}
 }
