@@ -143,8 +143,13 @@ func ReadMessage(r io.Reader) (m base.Message, err error) {
 	return m, nil
 }
 
+var mser = base.MessageStringer{
+	WritePayload: func(w io.Writer, payload []byte) {
+		fmt.Fprintf(w, "%s\n", payload)
+	},
+}
+
 func PrintMessage(w io.Writer, m base.Message) {
-	var mser base.MessageStringer
 	fmt.Fprintf(w, mser.MessageString(m))
 }
 
