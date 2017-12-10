@@ -2,4 +2,4 @@
 
 CURL=../coap-curl/coap-curl
 
-$CURL -X POST --data '5s' coap://localhost/TestDeduplication
+$CURL --verbose 2 -X POST --data '5s' coap://localhost/TestDeduplication
