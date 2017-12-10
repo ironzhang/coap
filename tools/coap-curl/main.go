@@ -13,7 +13,7 @@ import (
 	"github.com/ironzhang/coap/tools/coaputil"
 )
 
-type Args struct {
+type Options struct {
 	Confirmable   bool
 	Options       coaputil.StringsValue
 	EmptyOptions  coaputil.StringsValue
@@ -44,7 +44,7 @@ func ParseMethod(s string) (coap.Code, error) {
 
 // usage
 // coap-curl --empty-option "" --uint-option "" --string-option "" --opaque-option"" --data '{"Name": "xx"}' url
-func (a *Args) Parse() error {
+func (a *Options) Parse() error {
 	var err error
 	var method string
 
@@ -110,7 +110,7 @@ func AddOptionsByID(opts *coap.Options, format int, ss []string) error {
 	return nil
 }
 
-func AddOptions(r *coap.Request, a *Args) (err error) {
+func AddOptions(r *coap.Request, a *Options) (err error) {
 	if err = AddOptionsByName(&r.Options, a.Options); err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func AddOptions(r *coap.Request, a *Args) (err error) {
 	return nil
 }
 
-func MakeRequest(a *Args) (*coap.Request, error) {
+func MakeRequest(a *Options) (*coap.Request, error) {
 	payload, err := MakePayload(a.Data, a.InFile)
 	if err != nil {
 		return nil, err
@@ -147,15 +147,15 @@ func MakeRequest(a *Args) (*coap.Request, error) {
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 
-	var args Args
-	err := args.Parse()
+	var opts Options
+	err := opts.Parse()
 	if err != nil {
-		fmt.Printf("parse args: %v\n", err)
+		fmt.Printf("parse options: %v\n", err)
 		flag.Usage()
 		return
 	}
 
-	req, err := MakeRequest(&args)
+	req, err := MakeRequest(&opts)
 	if err != nil {
 		fmt.Printf("make request: %v\n", err)
 		return
@@ -169,8 +169,8 @@ func main() {
 	}
 	coap.PrintResponse(os.Stdout, resp, true)
 
-	if args.OutFile != "" {
-		if err = ioutil.WriteFile(args.OutFile, resp.Payload, 0664); err != nil {
+	if opts.OutFile != "" {
+		if err = ioutil.WriteFile(opts.OutFile, resp.Payload, 0664); err != nil {
 			fmt.Printf("write file: %v\n", err)
 		}
 	}
