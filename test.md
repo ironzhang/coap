@@ -2,7 +2,7 @@
 
 ## 测试工具
 
-|/|路径|描述|
+|工具|路径|描述|
 |---|---|---|
 |coap-server|coap/tools/coap-server|测试服务器|
 |coap-curl|coap/tools/coap-curl|发送coap请求的工具|
