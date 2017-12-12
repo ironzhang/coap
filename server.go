@@ -103,12 +103,13 @@ func (s *Server) Observe(token Token, urlstr string, accept uint32) (*Response, 
 }
 
 // CancelObserve 取消订阅.
-func (s *Server) CancelObserve(urlstr string) (*Response, error) {
+func (s *Server) CancelObserve(urlstr string, accept uint32) (*Response, error) {
 	req, err := NewRequest(true, GET, urlstr, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Options.Set(Observe, 1)
+	req.Options.Set(Accept, accept)
 	return s.postRequestAndWaitResponse(req)
 }
 
