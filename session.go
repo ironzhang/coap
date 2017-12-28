@@ -35,6 +35,12 @@ type Handler interface {
 	ServeCOAP(ResponseWriter, *Request)
 }
 
+type HandlerFunc func(ResponseWriter, *Request)
+
+func (f HandlerFunc) ServeCOAP(w ResponseWriter, r *Request) {
+	f(w, r)
+}
+
 // Observer 观察者接口
 type Observer interface {
 	ServeObserve(*Response)
