@@ -29,26 +29,31 @@ type Server struct {
 	sessions gctable.Table
 }
 
-// ListenAndServe 在指定地址端口监听并提供COAP服务.
-func (s *Server) ListenAndServe(address string) error {
+func (s *Server) listenUDP(address string) (net.PacketConn, error) {
 	addr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	ln, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer ln.Close()
-
 	if s.ReadBytes > 0 {
 		ln.SetReadBuffer(s.ReadBytes)
 	}
 	if s.WriteBytes > 0 {
 		ln.SetWriteBuffer(s.WriteBytes)
 	}
+	return ln, nil
+}
 
+// ListenAndServe 在指定地址端口监听并提供COAP服务.
+func (s *Server) ListenAndServe(address string) error {
+	ln, err := s.listenUDP(address)
+	if err != nil {
+		return err
+	}
+	defer ln.Close()
 	return s.Serve("coap", ln)
 }
 
