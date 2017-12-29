@@ -72,7 +72,7 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 		return nil, errors.New("coap: invalid Request.URL.Host")
 	}
 
-	conn, err := c.dialUDP(req.URL)
+	conn, err := c.dial(req.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +101,8 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 	return sess.postRequestAndWaitResponse(req)
 }
 
-func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
-	addr, err := net.ResolveUDPAddr("udp", u.Host)
+func (c *Client) dialUDP(address string) (net.Conn, error) {
+	addr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +117,10 @@ func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
 		conn.SetWriteBuffer(c.WriteBytes)
 	}
 	return conn, nil
+}
+
+func (c *Client) dial(u *url.URL) (net.Conn, error) {
+	return c.dialUDP(u.Host)
 }
 
 // Dial 建立COAP链接
@@ -136,7 +140,7 @@ func (c *Client) Dial(urlstr string, handler Handler, observer Observer) (*Conn,
 			u.Host += ":5683"
 		}
 	}
-	nc, err := c.dialUDP(u)
+	nc, err := c.dial(u)
 	if err != nil {
 		return nil, err
 	}
