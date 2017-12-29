@@ -57,6 +57,8 @@ func (c *Conn) SendRequest(req *Request) (*Response, error) {
 
 // Client 定义了运行一个COAP Client的参数
 type Client struct {
+	ReadBytes  int // 读缓冲大小
+	WriteBytes int // 写缓冲大小
 }
 
 var DefaultClient = &Client{}
@@ -100,7 +102,21 @@ func (c *Client) SendRequest(req *Request) (*Response, error) {
 }
 
 func (c *Client) dialUDP(u *url.URL) (net.Conn, error) {
-	return net.Dial("udp", u.Host)
+	addr, err := net.ResolveUDPAddr("udp", u.Host)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		return nil, err
+	}
+	if c.ReadBytes > 0 {
+		conn.SetReadBuffer(c.ReadBytes)
+	}
+	if c.WriteBytes > 0 {
+		conn.SetWriteBuffer(c.WriteBytes)
+	}
+	return conn, nil
 }
 
 // Dial 建立COAP链接

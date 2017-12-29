@@ -21,8 +21,10 @@ func ListenAndServe(address string, h Handler, o Observer) error {
 
 // Server 定义了运行一个COAP Server的参数
 type Server struct {
-	Handler  Handler  // 请求响应接口
-	Observer Observer // 观察者接口
+	Handler    Handler  // 请求响应接口
+	Observer   Observer // 观察者接口
+	ReadBytes  int      // 读缓冲大小
+	WriteBytes int      // 写缓冲大小
 
 	sessions gctable.Table
 }
@@ -39,6 +41,13 @@ func (s *Server) ListenAndServe(address string) error {
 		return err
 	}
 	defer ln.Close()
+
+	if s.ReadBytes > 0 {
+		ln.SetReadBuffer(s.ReadBytes)
+	}
+	if s.WriteBytes > 0 {
+		ln.SetWriteBuffer(s.WriteBytes)
+	}
 
 	return s.Serve("coap", ln)
 }
