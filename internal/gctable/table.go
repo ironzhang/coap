@@ -6,7 +6,11 @@ import (
 	"time"
 )
 
-var gcInterval = 10 * time.Minute
+var (
+	bucketNum    = 10240
+	minThreshold = 100
+	gcInterval   = 10 * time.Minute
+)
 
 func SetGC(interval time.Duration) (previous time.Duration) {
 	previous = gcInterval
@@ -43,7 +47,7 @@ func (t *Table) Remove(key string) {
 func (t *Table) getBucket(key string) *bucket {
 	t.mu.Lock()
 	if t.buckets == nil {
-		t.buckets = make([]bucket, 1024)
+		t.buckets = make([]bucket, bucketNum)
 	}
 	t.mu.Unlock()
 	hash := crc32.ChecksumIEEE([]byte(key))
@@ -65,7 +69,7 @@ func (b *bucket) add(key string, alloc func() Object) Object {
 	b.gc()
 	if b.m == nil {
 		b.m = make(map[string]Object)
-		b.threshold = 10
+		b.threshold = minThreshold
 		b.lastGC = time.Now()
 	}
 	object, ok := b.m[key]
@@ -100,8 +104,8 @@ func (b *bucket) gc() {
 	}
 	b.performGC()
 	b.threshold = 2 * len(b.m)
-	if b.threshold < 10 {
-		b.threshold = 10
+	if b.threshold < minThreshold {
+		b.threshold = minThreshold
 	}
 	b.lastGC = time.Now()
 }
