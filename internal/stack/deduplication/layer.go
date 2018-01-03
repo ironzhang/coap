@@ -108,10 +108,10 @@ func (l *Layer) Recv(m base.Message) error {
 
 	case s.Type == base.CON && m.Type == base.NON:
 		// 异常分支，忽略消息
+		log.Printf("ingore %s, do nothing", m)
 		return nil
 	}
-
-	panic("never arrive")
+	return nil
 }
 
 func (l *Layer) Send(m base.Message) error {
