@@ -77,6 +77,10 @@ func (s *server) Send(m base.Message) error {
 func (s *server) Recv(m base.Message) error {
 	state, ok := s.status.get(m.Token)
 	if !ok {
+		opt, ok := base.ParseBlock2Option(m)
+		if ok {
+			s.blockSize = opt.Size
+		}
 		return s.base.Recv(m)
 	}
 	opt, ok := base.ParseBlock2Option(m)
