@@ -71,12 +71,12 @@ const (
 
 // Content类型定义
 const (
-	TextPlain     = 0  // text/plain;charset=utf-8
-	AppLinkFormat = 40 // application/link-format
-	AppXML        = 41 // application/xml
-	AppOctets     = 42 // application/octet-stream
-	AppExi        = 47 // application/exi
-	AppJSON       = 50 // application/json
+	TextPlain     = uint32(0)  // text/plain;charset=utf-8
+	AppLinkFormat = uint32(40) // application/link-format
+	AppXML        = uint32(41) // application/xml
+	AppOctets     = uint32(42) // application/octet-stream
+	AppExi        = uint32(47) // application/exi
+	AppJSON       = uint32(50) // application/json
 )
 
 // Token 消息令牌
